@@ -1,0 +1,17 @@
+setup.py
+glidersim/__init__.py
+glidersim/behaviors.py
+glidersim/configuration.py
+glidersim/dataviz.py
+glidersim/fsm.py
+glidersim/getm_nc.py
+glidersim/glidermodels.py
+glidersim/glidersim.py
+glidersim/parser.py
+glidersim/pitch_battpos.py
+glidersim/timeconversion.py
+glidersim/datastore.py
+glidersim/nemo.py
+glidersim/geometry.py
+glidersim/timeseries.py
+glidersim/getm.py

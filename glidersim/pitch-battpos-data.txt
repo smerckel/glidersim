@@ -1,0 +1,12 @@
+# data for amadeus oct 2011 experiment
+# pitch = a * battpos + b
+# b = rho/cgy/mg/Ap^2 * Vp^2 +Cg0*(mg-mb)/cgy/mg
+# a = -0.607 rad/inch
+# Vp  	     b
+230	     0.286
+180	     0.20
+120	     0.13
+-120	     -0.26
+-180	     -0.34
+-230	     -0.43
+

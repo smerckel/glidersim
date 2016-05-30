@@ -1,0 +1,75 @@
+#  helgo.mi AMADEUS
+#
+# lmm=lucas.merckelbach@gkss.de
+
+# 14 Sep 2010:lmm: Initial setup. Runs through two waypoints and quits. Bogus waypoints for time being.
+# 21 Oct 2010:lmm: Modification for altimeter testing at Gromitz.
+# 7 feb 2011:lmm: modification for first test near helgoland
+# 27/4/11 lmm u_alt_reduced_usage_mode 0 -> 1
+
+sensor: u_alt_reduced_usage_mode(bool) 1 # (1) default is on, 0 -> off
+                                         # reduced usage mode turns on
+                                         # altimeter only when necessary
+
+#sensor: u_min_altimeter(m)   1.0   # (2)   altimeter reading must be between these(inclusive)
+#sensor: u_alt_min_post_inflection_time(sec)  10.0  # num secs after inflection before we take data
+#sensor: u_alt_min_depth(m)     2.0  #  how deep vehicle must be to use altitude
+#sensor: u_alt_reqd_good_in_a_row(nodim)  3 # how many in a row we require before accepting reading
+#sensor: u_alt_filter_enabled(bool)       1 # enable median filter depth for altitude.
+sensor: u_use_current_correction(nodim) 0
+sensor: u_dbd_sensor_list_xmit_control(enum)  3
+#######################################################################################################
+
+behavior: abend
+                                                 # MS_ABORT_OVERTIME
+    b_arg: overtime(s)                      -1   # < 0 disables
+    b_arg: samedepth_for(s)                600   # < 0 disables
+    b_arg: samedepth_for_sample_time(s)     30   # how often to check
+    b_arg: max_wpt_distance(m)          300000   # MS_ABORT_WPT_TOOFAR (300 km)
+    b_arg: stalled_for(sec)                 -1   # <0 disables
+
+# Come up every X half cycles as determined by yo
+# This is determined the completion of yo leaving the stack idle
+behavior: surface
+    b_arg: args_from_file(enum)     50   # read from mafiles/surfac50.ma
+    b_arg: start_when(enum)          1   # 0-immediately, 1-stack idle 2-pitch idle 3-heading idle
+                                         # 6-when_secs, 7-when_wpt_dist
+
+#Come up if haven't had comms for a while, xx hours, defined in surfac51.ma
+behavior: surface
+    b_arg: args_from_file(enum)      51  # read from mafiles/surfac51.ma
+    b_arg: start_when(enum)          12  # BAW_NOCOMM_SECS 12, when have not had comms for WHEN_SECS secs
+   
+
+
+behavior: goto_list
+    b_arg: args_from_file(enum)     50   # read from mafiles/goto_l50.ma
+
+
+behavior: yo
+    b_arg: args_from_file(enum)     50   # read from mafiles/yo50.ma
+
+behavior: prepare_to_dive
+    b_arg: start_when(enum)          0   # 0-immediately, 1-stack idle 2-depth idle
+    b_arg: wait_time(s)            300   # 5 minutes, how long to wait for gps
+
+
+# sample settings for CTD:
+behavior: sample
+    b_arg: args_from_file(enum)     50   # >= 0 enables reading from mafiles/sample<N>.ma
+# sample settings for FLNTU:
+behavior: sample
+    b_arg: args_from_file(enum)     51   # >= 0 enables reading from mafiles/sample<N>.ma
+
+
+behavior: sensors_in       
+    b_arg: c_science_all_on(sec)     0   # as fast as possible
+    b_arg: c_flntu_on(sec)          -1
+    b_arg: c_profile_on(sec)        -1
+    b_arg: c_att_time(sec)           0   # as fast as possible
+    b_arg: c_alt_time(sec)           -1  # disabled
+    b_arg: c_pressure_time(sec)      0   # as fast as possible
+    b_arg: u_battery_time(sec)      10
+    b_arg: u_vacuum_time(sec)       10
+    b_arg: c_gps_on(bool)            0  # Special, 1 is on, 0 is off
+
