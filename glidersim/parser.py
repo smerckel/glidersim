@@ -15,14 +15,21 @@ ImplementedBehaviors={'abend':behaviors.Abend,
            
 
 class MafileParser(object):
-    def __init__(self,filename,behavior,mafileDirectory='mafiles'):
+    def __init__(self,filename=None,behavior=None,mafileDirectory='mafiles'):
         self.filename=filename
         self.behavior=behavior
         self.mafileDirectory=mafileDirectory
+        
     def parse(self):
-        fp=open(os.sep.join([self.mafileDirectory,self.filename]))
-        lines=fp.readlines()
-        fp.close()
+        with open(os.sep.join([self.mafileDirectory,self.filename])) as fp:
+            lines=fp.readlines()
+        self.lines = self.__parse(lines)
+
+    def parses(self, s):
+        lines=s.split("\n")
+        self.lines = self.__parse(lines)
+        
+    def __parse(self, lines):
         # remove any leading spaces:
         lines=[i.strip() for i in lines]
         # remove any comments:
@@ -50,7 +57,7 @@ class MafileParser(object):
                 self.addb_arg(line)
         if eolines:
             raise ValueError('Probably a malformed ma file. No end:b_arg')
-        self.lines=lines
+        return lines
 
     def addb_arg(self,i):
         dummy,param,value=i.split()
@@ -64,9 +71,13 @@ class MafileParser(object):
         b.__dict__[param]=valueNum
 
 class MafileParserWpt(MafileParser):
-    def __init__(self,filename,behavior,mafileDirectory='mafiles'):
+    def __init__(self,filename=None ,behavior=None, mafileDirectory='mafiles'):
         MafileParser.__init__(self,filename,behavior,mafileDirectory)
-    
+
+    def parses(self,s):
+        super().parses(s)
+        self.parseWpts()
+        
     def parseWpts(self):
         lines=self.lines
         eolines=True
@@ -78,31 +89,33 @@ class MafileParserWpt(MafileParser):
         if eolines:
             raise ValueError('Probably a malformed ma file. No start:waypoints')
         self.behavior.waypoints=[]
-        for i in range(self.behavior.num_waypoints):
+        i=0
+        while True:
+            if not len(lines):
+                break
             line=lines.pop(0)
+            if line=='<end:waypoints>':
+                break
             lon,lat=line.split()
             lon=float(lon)
             lat=float(lat)
+            i+=1
             self.behavior.waypoints.append((lon,lat))
-        line=lines.pop(0)
-        if line!='<end:waypoints>':
-            raise ValueError('Probably a malformed ma file. No end:waypoints')
+        if i != self.behavior.num_waypoints: 
+            raise ValueError('Probably a malformed ma file. Number of waypoints incorrect')
 
 class MissionParser(object):
-    def __init__(self,filename,missionDirectory='missions',
-                 mafileDirectory='mafiles',verbose=True):
-        self.filename=filename
+    def __init__(self,mission_dict, verbose=True):
         self.behaviors=[]
         self.currentBehaviorName=None
-        self.missionDirectory=missionDirectory
-        self.mafileDirectory=mafileDirectory
         self.sensor_settings=[]
         self.verbose=verbose
 
     def parse(self):
-        fp=open(os.sep.join([self.missionDirectory,self.filename]))
-        lines=fp.readlines()
-        fp.close()
+        lines = self.mission_dict['mission']
+        self.lines = self.__parse(lines)
+
+    def __parse(self, lines):
         # remove any leading spaces:
         lines=[i.strip() for i in lines]
         # remove any comments:
