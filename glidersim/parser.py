@@ -105,43 +105,31 @@ class MafileParserWpt(MafileParser):
             raise ValueError('Probably a malformed ma file. Number of waypoints incorrect')
 
 class MissionParser(object):
-    def __init__(self,mission_dict, verbose=True):
+    def __init__(self, verbose=True):
         self.behaviors=[]
         self.currentBehaviorName=None
         self.sensor_settings=[]
         self.verbose=verbose
 
-    def parse(self):
-        lines = self.mission_dict['mission']
-        self.lines = self.__parse(lines)
+    def parse(self, mission, mafile_directory):
+        with open(mission, 'r') as fp:
+            lines = fp.readlines()
+        self.lines = self.__parse(lines, mafile_directory)
 
-    def __parse(self, lines):
+    def __parse(self, lines, mafile_directory):
         # remove any leading spaces:
         lines=[i.strip() for i in lines]
         # remove any comments:
         lines=[re.sub("#.*$","",i) for i in lines]
         # remove blanks:
         lines=[i for i in lines if i]
-        read_waypoints=False # This is a hack to read waypoints in a
-                             # mission file, used for seaglider
-                             # simulations
-        waypoint_counter=0
         for i in lines:
             if i.startswith("behavior:"):
                 self.addBehavior(i)
             elif i.startswith("b_arg:"):
-                self.addb_arg(i)
+                self.addb_arg(i, mafile_directory)
             elif i.startswith("sensor:"):
                 self.set_sensor(i)
-            elif i.startswith("<start:waypoints>"):
-                read_waypoints=True
-            elif i.startswith("<end:waypoints>"):
-                read_waypoints=False
-                # check number of waypoints?
-            elif read_waypoints:
-                # waypoints are given as two floats.
-                self.add_waypoint(i)
-                waypoint_counter+=1
             else:
                 raise ValueError('Received unexpected line in mission file!')
 
@@ -166,7 +154,7 @@ class MissionParser(object):
         behavior=self.behaviors[-1]
         behavior.waypoints.append((lon,lat))
 
-    def addb_arg(self,i):
+    def addb_arg(self,i, mafile_directory):
         if self.currentBehaviorName in list(ImplementedBehaviors.keys()):
             # only do something here if the behavior is implemented.
             dummy,param,value=i.split()
@@ -184,11 +172,11 @@ class MissionParser(object):
                     fn=fn[:6]
                 fn+=str(valueNum)+".ma"
                 if b.behaviorName.lower()=='goto_list':
-                    MA=MafileParserWpt(fn,b,self.mafileDirectory)
+                    MA=MafileParserWpt(fn,b,mafile_directory)
                     MA.parse()
                     MA.parseWpts()
                 else:
-                    MA=MafileParser(fn,b,self.mafileDirectory)
+                    MA=MafileParser(fn,b,mafile_directory)
                     MA.parse()
     def set_sensor(self,i):
         words=i.split()

@@ -7,6 +7,9 @@ import numpy as np
 import os
 from .glidermodels import GliderException
 
+MISSIONS = 'missions'
+MAFILES = 'mafiles'
+
 class Actuator(object):
     busy=False
     def __init__(self):
@@ -83,7 +86,7 @@ class LayeredControl(object):
         return b,p,f
 
     def resolvePitch(self,c_pitch,m_pitch,c_battpos,t):
-        delta_battpos=-self.pitchPID.output(t,m_pitch,c_pitch)
+        delta_battpos=-self.pitchPID.output(t,np.tan(m_pitch),np.tan(c_pitch))
         x_battpos=c_battpos+delta_battpos
         return x_battpos
 
@@ -158,7 +161,6 @@ class LayeredControl(object):
             else:
                 raise ValueError("unknown fin control")
             gs['c_fin']=c_fin
-
         return c_battpos,c_ballast_pumped,c_fin
 
 
@@ -166,41 +168,42 @@ class LayeredControl(object):
 
             
 class GliderMission(datastore.Data):
-    def __init__(self,config,glidermodel=None,interactive=True):
+    def __init__(self,config,glidermodel=None,environment_model=None, interactive=True):
         if interactive:
             config.checkOutputFilename()
-        mission=config.missionName
+        if glidermodel is None:
+            raise ValueError("No glider model specified. Try ShallowGliderModel for example.")
+        
         datestr=config.datestr
         timestr=config.timestr
         lat=config.lat_ini
         lon=config.lon_ini
-        storePeriod=config.storePeriod
-        directory=config.directory
-        basename=config.basename
-        suffix=config.suffix
+        dt = config.dt
+        rho0 = config.rho0
+        mission_start = config.mission_start
+        
+        self.mission=config.missionName
+        self.mission_directory=config.mission_directory
         self.output=config.output
-        self.mission=mission
-        self.mafiles=config.mafiles
-        self.missions=config.missions
-        self.LC=LayeredControl()
         self.longtermParameters=config.longtermParameters
+
         self.datatransfertime=0.
-        if glidermodel==None:
-            self.glider=glidermodels.GliderModel(datestr,timestr,lat,lon)
-            # these have been omitted?
-            #directory=directory,
-            #basename=basename,
-            #suffix=suffix)
-        else:
-            self.glider=glidermodel(datestr,timestr,lat,lon,
-                                    directory=directory,
-                                    basename=basename,
-                                    suffix=suffix)
+
+        self.glider=glidermodel(dt, rho0, environment_model)
+        self.glider.initialise_gliderstate(datestr, timestr, lat, lon, mission_start)
+        self.glider.initialise_gliderflightmodel(Cd0=config.Cd0,
+                                                 ah=config.ah,
+                                                 Vg=config.Vg,
+                                                 mg=config.mg,
+                                                 T1 = config.T1,
+                                                 T2 = config.T2,
+                                                 T3 = config.T3)
+        self.LC=LayeredControl()
         # set the PIDs for LC, as they are hardware dependent:
         self.LC.set_PIDS(self.glider.finPID,self.glider.pitchPID)
         config.set_sensors(self)
         config.set_special_settings(self)
-        datastore.Data.__init__(self,self.glider.gs,period=storePeriod)
+        datastore.Data.__init__(self,self.glider.gs,period=config.storePeriod)
 
     def loadlongterm(self,longterm_filename=None):
         if longterm_filename!=None:
@@ -231,9 +234,12 @@ class GliderMission(datastore.Data):
                 raise ValueError("No mission name supplied!")
             else:
                 mission=self.mission
-        MP=parser.MissionParser(mission,missionDirectory=self.missions,
-                                mafileDirectory=self.mafiles,verbose=verbose)
-        MP.parse()
+        mission = os.path.join(self.mission_directory, MISSIONS, mission)
+        mafiles_directory = os.path.join(self.mission_directory, MAFILES)
+
+        
+        MP=parser.MissionParser(verbose=verbose)
+        MP.parse(mission, mafiles_directory)
         # set sensor_settings, if any
         for p,v in MP.sensor_settings:
             self.sensor(p,v)
@@ -267,44 +273,40 @@ class GliderMission(datastore.Data):
                 break
         return r
             
-    def run(self,dt=1,ndtCPU=4,maxSimulationTime=None,
-            mission_start="initial",end_on_surfacing=0,ndtNetCDF=100):
+    def run(self,dt=1,CPUcycle=4,maxSimulationTime=None,
+            end_on_surfacing=0):
         ''' dt : time step in seconds
-            ndtCPU: number of time step per CPU cycle.
+            CPUcycle: time step per CPU cycle.
             maxSimulationTime: maximum simulation time in days
 
             end_on_surfacing n>0:
             Stops simulation when glider surfaces via a surfacing 
             behavior for nth time.
         '''
-        self.glider.gs['_pickup']=(mission_start=="pickup")
-        if mission_start=="pickup":
-            # if we start from a pickup we step back in time by datatransfertime
-            # to simulate that the surfacing event happened that amount of time in the 
-            # past.
+        if self.glider.gs['_pickup'] == True: # we're continuing an existing mission (affects goto_l behavior only)
             self.glider.gs['time_since_cycle_start']=self.datatransfertime
+
         behaviors.Behavior.MS=0
         # surface conditions:
         self.glider.gs['c_ballast_pumped']=self.glider.buoyancypump.set_commanded(1000)        
         self.glider.gs['c_battpos']=self.glider.pitchmotor.set_commanded(100)
         self.glider.gs['c_fin']=self.glider.finmotor.set_commanded(0)        
-        n=0
+        subcycle_time = 1e3 # make sure we update LC on the first round.
         simulationTime = self.glider.gs['m_present_time']
         while 1:
-            #if n%100==0:
-            #    print("%5f"%(n*dt))
-
             if behaviors.VERBOSE==True:
-                print(self.glider.gs['m_depth'])
-                print(self.glider.gs['hover_for'])
+                print("Time:", simulationTime)
+                print("m_depth:", self.glider.gs['m_depth'])
+                print("hover for:", self.glider.gs['hover_for'])
                 print("pitch stack:",self.glider.gs['pitch_stack'])
                 print("pump stack:",self.glider.gs['bpump_stack'])
                 print("fin stack:",self.glider.gs['fin_stack'])
                 print("ballast pumped:",self.glider.gs['c_ballast_pumped'],self.glider.gs['m_ballast_pumped'])
-
-            if n%ndtCPU==0: # a new cpucycle
+                print()
+                
+            if subcycle_time>CPUcycle: # a new cpucycle
                 b,p,f=self.LC.cycle(self.glider.gs)
-
+                subcycle_time=0
             if self.glider.gs['m_depth']<0.1: # at the surface:
                 f=0 # set fin to 0
                 self.LC.finPID.reset() # reset PID settings (ecum ->0)
@@ -342,10 +344,10 @@ class GliderMission(datastore.Data):
                     else:
                         print("Continuing")
 
-            self.glider.update(simulationTime,dt,ndtCPU,n%ndtCPU==0,ndtNetCDF)
+            self.glider.update(simulationTime,dt)
             self.add_data()
             simulationTime+=dt
-            n+=1
+            subcycle_time+=dt
             
         # mission is finialised. End of while 1:
 

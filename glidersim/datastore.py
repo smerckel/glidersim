@@ -10,9 +10,8 @@ class Data(object):
         self.period=period
 
     def __save_pickle(self,fn):
-        fd=open(fn,'w')
-        pickle.dump(self.data,fd)
-        fd.close()
+        with open(fn,'wb') as fd:
+            pickle.dump(self.data,fd)
 
     def __save_ascii(self,fn):
         fd=open(fn,'w')
@@ -28,9 +27,8 @@ class Data(object):
         
         
     def __load_pickle(self,fn):
-        fd=open(fn,'r')
-        self.data=pickle.load(fd)
-        fd.close()
+        with open(fn,'rb') as fd:
+            self.data=pickle.load(fd)
 
     def save(self,fn=None,data_format='pickle'):
         ''' '''

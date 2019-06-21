@@ -219,6 +219,9 @@ class Behavior(object):
             if c.check(gs):
                 self.fsm.process(arg)
 
+        #print("behaviors:process(): time:",  self.gliderState['m_present_time'])
+        #input("\nPress return")
+        
     def updateMS(self,ms):
         Behavior.MS+= ~Behavior.MS&ms # x+=~x&2 add 2 if x&2 is 0, 0 otherwise.
         CLRS.b("Mission Status: %s"%(Behavior.MS))
@@ -323,7 +326,6 @@ class DiveClimbBehavior(WhenBehavior):
         self.gliderState['hover_for']=0.
         self.gliderState['stalled_for']=0
         self.gliderState['samedepth_for']=0.
-
 
 ############### Helper classes ################
 
