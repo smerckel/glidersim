@@ -110,13 +110,15 @@ class MissionParser(object):
         self.currentBehaviorName=None
         self.sensor_settings=[]
         self.verbose=verbose
-
-    def parse(self, mission, mafile_directory):
+        self.mafiles=[]
+        
+    def parse(self, mission, mafile_directory, raise_error_on_missing_mafiles=True):
         with open(mission, 'r') as fp:
             lines = fp.readlines()
-        self.lines = self.__parse(lines, mafile_directory)
-
-    def __parse(self, lines, mafile_directory):
+        self.lines = self.__parse(lines, mafile_directory, raise_error_on_missing_mafiles)
+        return self.mafiles
+        
+    def __parse(self, lines, mafile_directory, raise_error_on_missing_mafiles):
         # remove any leading spaces:
         lines=[i.strip() for i in lines]
         # remove any comments:
@@ -127,7 +129,7 @@ class MissionParser(object):
             if i.startswith("behavior:"):
                 self.addBehavior(i)
             elif i.startswith("b_arg:"):
-                self.addb_arg(i, mafile_directory)
+                self.addb_arg(i, mafile_directory, raise_error_on_missing_mafiles)
             elif i.startswith("sensor:"):
                 self.set_sensor(i)
             else:
@@ -154,7 +156,7 @@ class MissionParser(object):
         behavior=self.behaviors[-1]
         behavior.waypoints.append((lon,lat))
 
-    def addb_arg(self,i, mafile_directory):
+    def addb_arg(self,i, mafile_directory, raise_error_on_missing_mafiles):
         if self.currentBehaviorName in list(ImplementedBehaviors.keys()):
             # only do something here if the behavior is implemented.
             dummy,param,value=i.split()
@@ -171,13 +173,18 @@ class MissionParser(object):
                 if len(fn)>6:
                     fn=fn[:6]
                 fn+=str(valueNum)+".ma"
-                if b.behaviorName.lower()=='goto_list':
-                    MA=MafileParserWpt(fn,b,mafile_directory)
-                    MA.parse()
-                    MA.parseWpts()
-                else:
-                    MA=MafileParser(fn,b,mafile_directory)
-                    MA.parse()
+                self.mafiles.append(fn)
+                try:
+                    if b.behaviorName.lower()=='goto_list':
+                        MA=MafileParserWpt(fn,b,mafile_directory)
+                        MA.parse()
+                        MA.parseWpts()
+                    else:
+                        MA=MafileParser(fn,b,mafile_directory)
+                        MA.parse()
+                except FileNotFoundError as e:
+                    if raise_error_on_missing_mafiles:
+                        raise e
     def set_sensor(self,i):
         words=i.split()
         parameter_name=words[1]

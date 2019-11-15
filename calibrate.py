@@ -5,9 +5,9 @@ import glidersim
 import glidersim.configuration
 
 # setting the name for U and V velocities as used int he getm data files.
-glidersim.glidermodels.GetmEnvironment.Uname='eastward_sea_water_velocity'
-glidersim.glidermodels.GetmEnvironment.Vname='northward_sea_water_velocity'
-glidersim.glidermodels.GetmEnvironment.UseW=False
+#glidersim.glidermodels.GetmEnvironment.Uname='eastward_sea_water_velocity'
+#glidersim.glidermodels.GetmEnvironment.Vname='northward_sea_water_velocity'
+#glidersim.glidermodels.GetmEnvironment.UseW=False
 
 
 class SBD(object):

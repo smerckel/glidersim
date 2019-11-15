@@ -327,6 +327,24 @@ class SlocumDeepHardware(object):
         self.pitchPID=PID(Kp=0.4,Ki=0.001,Kd=0.0)
 
 
+class SlocumDeepExtendedHardware(object):
+    def __init__(self):
+        self.buoyancypump=LinearActuator(initial_position=200.,
+                                         speed=4., # from data 
+                                         position_max=400.,
+                                         position_min=-400.,
+                                         deadbandWidth=30.)
+        self.pitchmotor=LinearActuator(initial_position=0.9,
+                                       speed=0.10, # 
+                                       position_max=1.4,
+                                       position_min=-1.4,
+                                       deadbandWidth=0.02)
+        self.finmotor=LinearActuator(0.,0.02,0.45,-0.45,0.035)
+        self.finPID=PID(Kp=0.8,Ki=0.001,Kd=0)
+        self.pitchPID=PID(Kp=0.4,Ki=0.001,Kd=0.0)
+
+        
+
 class BaseGliderModel(object):
     def __init__(self, dt, rho0, environment_model=None):
         self.gps=GPS()
@@ -719,7 +737,7 @@ class GliderFlightModel(gliderflight.DynamicGliderModel):
 
    
 # subclasses of BaseGliderModel
-class ShallowGliderModel(BaseGliderModel, SlocumShallow100Hardware):
+class Shallow100mGliderModel(BaseGliderModel, SlocumShallow100Hardware):
     def __init__(self, dt, rho0, environment_model):
         print("Initialising SLOCUM 100 m glider")
         BaseGliderModel.__init__(self, dt, rho0, environment_model)
@@ -731,6 +749,13 @@ class DeepGliderModel(BaseGliderModel,SlocumDeepHardware):
         BaseGliderModel.__init__(self, dt, rho0, environment_model)
         SlocumDeepHardware.__init__(self)
 
+class DeepExtendedGliderModel(BaseGliderModel,SlocumDeepExtendedHardware):
+    def __init__(self, dt, rho0, environment_model):
+        print("Initialising SLOCUM 1000 m glider with Extended buoyancy pump")
+        BaseGliderModel.__init__(self, dt, rho0, environment_model)
+        SlocumDeepHardware.__init__(self)
+
+        
 
 
 

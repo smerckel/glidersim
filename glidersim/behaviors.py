@@ -555,8 +555,9 @@ class Surface(WhenBehavior):
                 self.gliderState['x_gps_lmc_y_dive']=self.gliderState['m_lmc_y']
                 self.gliderState['x_time_dive']=self.gliderState['m_present_time']
             self.b_arg['resume'].set_True()
-            if self.start_when==13: # triggered by UTC time:
-                self.b_arg['start_when'].set_False()
+            # This seems not to make much sense really...
+            #if self.start_when==13: # triggered by UTC time:
+            #    self.b_arg['start_when'].set_False()
 
     def getBusy(self,fsm):
         self.b_arg['resume'].set_False()

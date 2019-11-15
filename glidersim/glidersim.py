@@ -168,11 +168,12 @@ class LayeredControl(object):
 
             
 class GliderMission(datastore.Data):
-    def __init__(self,config,glidermodel=None,environment_model=None, interactive=True):
+    def __init__(self,config,glidermodel=None,environment_model=None, interactive=True, verbose=True):
         if interactive:
             config.checkOutputFilename()
         if glidermodel is None:
             raise ValueError("No glider model specified. Try ShallowGliderModel for example.")
+        self.verbose=verbose
         
         datestr=config.datestr
         timestr=config.timestr
@@ -228,14 +229,18 @@ class GliderMission(datastore.Data):
             fd.close()
             print("Longterm state file successfully written.")
         
-    def loadmission(self,mission=None,verbose=True):
+    def loadmission(self,mission=None,verbose=True, use_glider_directory_structure=True):
         if not mission:
             if not self.mission:
                 raise ValueError("No mission name supplied!")
             else:
                 mission=self.mission
-        mission = os.path.join(self.mission_directory, MISSIONS, mission)
-        mafiles_directory = os.path.join(self.mission_directory, MAFILES)
+        if use_glider_directory_structure:
+            mission = os.path.join(self.mission_directory, MISSIONS, mission)
+            mafiles_directory = os.path.join(self.mission_directory, MAFILES)
+        else:
+            mission = os.path.join(self.mission_directory, mission)
+            mafiles_directory = self.mission_directory
 
         
         MP=parser.MissionParser(verbose=verbose)
@@ -272,7 +277,10 @@ class GliderMission(datastore.Data):
                 r=True
                 break
         return r
-            
+    
+    def _npfy_data(self):
+        self.data = dict([(k,np.array(v)) for k,v in self.data.items()])
+
     def run(self,dt=1,CPUcycle=4,maxSimulationTime=None,
             end_on_surfacing=0):
         ''' dt : time step in seconds
@@ -294,19 +302,20 @@ class GliderMission(datastore.Data):
         subcycle_time = 1e3 # make sure we update LC on the first round.
         simulationTime = self.glider.gs['m_present_time']
         while 1:
-            if behaviors.VERBOSE==True:
-                print("Time:", simulationTime)
-                print("m_depth:", self.glider.gs['m_depth'])
-                print("hover for:", self.glider.gs['hover_for'])
-                print("pitch stack:",self.glider.gs['pitch_stack'])
-                print("pump stack:",self.glider.gs['bpump_stack'])
-                print("fin stack:",self.glider.gs['fin_stack'])
-                print("ballast pumped:",self.glider.gs['c_ballast_pumped'],self.glider.gs['m_ballast_pumped'])
-                print()
                 
-            if subcycle_time>CPUcycle: # a new cpucycle
+            if subcycle_time>=CPUcycle: # a new cpucycle
                 b,p,f=self.LC.cycle(self.glider.gs)
                 subcycle_time=0
+                if behaviors.VERBOSE==True:
+                    print("Time:", simulationTime)
+                    print("m_depth:", self.glider.gs['m_depth'])
+                    print("hover for:", self.glider.gs['hover_for'])
+                    print("pitch stack:",self.glider.gs['pitch_stack'])
+                    print("pump stack:",self.glider.gs['bpump_stack'])
+                    print("fin stack:",self.glider.gs['fin_stack'])
+                    print("ballast pumped:",self.glider.gs['c_ballast_pumped'],self.glider.gs['m_ballast_pumped'])
+                    print()
+                
             if self.glider.gs['m_depth']<0.1: # at the surface:
                 f=0 # set fin to 0
                 self.LC.finPID.reset() # reset PID settings (ecum ->0)
@@ -348,7 +357,8 @@ class GliderMission(datastore.Data):
             self.add_data()
             simulationTime+=dt
             subcycle_time+=dt
-            
+            if self.verbose:
+                print("Depth: %.2f"%(self.glider.gs['m_depth']))
         # mission is finialised. End of while 1:
 
         if behaviors.Behavior.MS&behaviors.COMPLETED:
@@ -357,6 +367,8 @@ class GliderMission(datastore.Data):
             for k,v in behaviors.ABORTS.items():
                 if behaviors.Behavior.MS&v:
                     print("Mission abort: %s"%(k.upper()))
+        self._npfy_data()
+
 
 if __name__=='__main__':
     GM=GliderMission('gb.mi',datestr='20100519',timestr="00:30",lat=5410.000,lon=800.000,
