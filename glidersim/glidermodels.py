@@ -684,25 +684,25 @@ class GliderFlightModel(gliderflight.DynamicGliderModel):
         
         Cd0 = self.Cd0
         # stage 1
-        k1_u, k1_w = self._compute_k(uh, w, rho, pitch, FBg, m11, m12, m21, m22, h, Cd0)
+        k1_u, k1_w = self._DynamicGliderModel__compute_k(uh, w, rho, pitch, FBg, m11, m12, m21, m22, h, Cd0)
         k1_sx = h * uh
         k1_sz = h * w
         _uh = uh + k1_u*0.5
         _w = w + k1_w*0.5
         # stage 2
-        k2_u, k2_w = self._compute_k(_uh, _w, rho, pitch, FBg, m11, m12, m21, m22, h, Cd0)
+        k2_u, k2_w = self._DynamicGliderModel__compute_k(_uh, _w, rho, pitch, FBg, m11, m12, m21, m22, h, Cd0)
         k2_sx = h * _uh
         k2_sz = h * _w
         # stage 3
         _uh = uh + k2_u*0.5
         _w = w + k2_w*0.5
-        k3_u, k3_w = self._compute_k(_uh, _w, rho, pitch, FBg, m11, m12, m21, m22, h, Cd0)
+        k3_u, k3_w = self._DynamicGliderModel__compute_k(_uh, _w, rho, pitch, FBg, m11, m12, m21, m22, h, Cd0)
         k3_sx = h * _uh
         k3_sz = h * _w
         #stage 4
         _uh = uh + k3_u
         _w = w + k3_w
-        k4_u, k4_w = self._compute_k(_uh, _w, rho, pitch, FBg, m11, m12, m21, m22, h, Cd0)
+        k4_u, k4_w = self._DynamicGliderModel__compute_k(_uh, _w, rho, pitch, FBg, m11, m12, m21, m22, h, Cd0)
         k4_sx = h * _uh
         k4_sz = h * _w
         uh += (k1_u + 2*k2_u + 2*k3_u + k4_u)/6

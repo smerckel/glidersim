@@ -18,7 +18,7 @@ class GliderData(object):
     Bathymetry data are from a netcdf file.
     '''
     
-    BATHYMETRY_FILENAME = '/home/lucas/working/git/LMC/data/bathymetry.nc'
+    BATHYMETRY_FILENAME = '/home/lucas/working/git/LMC/data/bathymetry_CV.nc'
     GLIDERS_DIRECTORY = '/home/lucas/samba/gliders'
     AGE = 12 # Hours, use CTD data younger than this.
     
@@ -29,6 +29,7 @@ class GliderData(object):
         self.eos_fun = None
         self.glider_name = glider_name
         self.gliders_directory = gliders_directory or GliderData.GLIDERS_DIRECTORY
+        self._print_warnings = True
         
     def read_bathymetry(self):
         ''' Read bathymetry from a netcdf file
@@ -36,9 +37,12 @@ class GliderData(object):
         Sets self.bathymetry_fun
         '''
         dataset = netCDF4.Dataset(self.BATHYMETRY_FILENAME, 'r', keepweakref=True)
-        bathymetry = dataset.variables['bathymetry'][...].copy()
-        lat = dataset.variables['latc'][...].copy()
-        lon = dataset.variables['lonc'][...].copy()
+        #bathymetry = dataset.variables['bathymetry'][...].copy()
+        #lat = dataset.variables['latc'][...].copy()
+        #lon = dataset.variables['lonc'][...].copy()
+        bathymetry = -dataset.variables['elevation'][...].copy()
+        lat = dataset.variables['lat'][...].copy()
+        lon = dataset.variables['lon'][...].copy()
         dataset.close()
         self.bathymetry_fun = RegularGridInterpolator((lat, lon), bathymetry)
 
@@ -53,7 +57,19 @@ class GliderData(object):
             T = np.ones_like(P)*15
         else:
             tmp = dbd.get_sync("sci_water_cond", "sci_water_temp sci_water_pressure".split())
-            t, C, T, P = tmp.compress(np.logical_and(tmp[1]>0, tmp[0][-1]-tmp[0]>self.AGE*3600), axis=1)
+            t_last = tmp[0][-1]
+            age = t_last - tmp[0]
+            t, C, T, P = tmp.compress(np.logical_and(tmp[1]>0, age<self.AGE*3600), axis=1)
+            try:
+                _, u, v = dbd.get_sync("m_water_vx", ["m_water_vy"])
+            except dbdreader.DbdError:
+                try:
+                    _, u, v = dbd.get_sync("m_final_water_vx", ["m_final_water_vy"])
+                except dbdreader.DbdError:
+                    u = np.array([0])
+                    v = np.array([0])
+                               
+            u, v = np.compress(np.logical_and(np.abs(u)<1.5, np.abs(v)<1.5), [u, v], axis=1)
         rho = fast_gsw.rho(C*10, T, P*10, lon, lat)
         SA = fast_gsw.SA(C*10, T, P*10, lon, lat)
         # compute the age of each measurement, and the resulting weight.
@@ -61,7 +77,7 @@ class GliderData(object):
         weights = np.exp(-dt/(self.AGE*3600))
         # make binned averages
         max_depth = P.max()*10
-        dz = 1
+        dz = 5
         zi = np.arange(dz/2, max_depth+dz/2, dz)
         bins = np.arange(0, max_depth+dz, dz)
         bins[0]=-10
@@ -78,17 +94,25 @@ class GliderData(object):
                 weights_sum[_idx] += _w
             except IndexError:
                 continue
-        rho_avg = rho_avg/weights_sum
-        SA_avg = SA_avg/weights_sum
-        T_avg = T_avg/weights_sum
-        self.rho_fun = interp1d(zi, rho_avg, bounds_error = False, fill_value=(rho_avg[0], rho_avg[-1]))
-        self.SA_fun = interp1d(zi, SA_avg, bounds_error = False, fill_value=(SA_avg[0], SA_avg[-1]))
-        self.T_fun = interp1d(zi, T_avg, bounds_error = False, fill_value=(T_avg[0], T_avg[-1]))
-            
+        # if data are sparse, it can be that ther are gaps
+        j = np.unique(idx)
+        zj = zi[j]
+        rho_avg = rho_avg[j]/weights_sum[j]
+        SA_avg = SA_avg[j]/weights_sum[j]
+        T_avg = T_avg[j]/weights_sum[j]
+        self.rho_fun = interp1d(zj, rho_avg, bounds_error = False, fill_value=(rho_avg[0], rho_avg[-1]))
+        self.SA_fun = interp1d(zj, SA_avg, bounds_error = False, fill_value=(SA_avg[0], SA_avg[-1]))
+        self.T_fun = interp1d(zj, T_avg, bounds_error = False, fill_value=(T_avg[0], T_avg[-1]))
+
+        if self.u_fun is None: # not intialised yet, use last water current estimate available.
+            self.u_fun = lambda x : u[-1]
+            self.v_fun = lambda x : v[-1]
+        
     def initialise_velocity_data(self, t, lat, lon):
-        self.u_fun = lambda x: 0
-        self.v_fun = lambda x: 0
-            
+        #self.u_fun = lambda x: 0
+        #self.v_fun = lambda x: 0
+        pass
+    
     def get_data(self, t, lat, lon, z):
         ''' Standard interface, getting environmental parameters:
 
@@ -108,11 +132,19 @@ class GliderData(object):
             self.initialise_velocity_data(t, lat, lon)
             self.read_bathymetry()
             self.read_gliderdata(lat, lon)
-
-        u = float(self.u_fun(t))
-        v = float(self.v_fun(t))
+        try:
+            u = float(self.u_fun(t))
+            v = float(self.v_fun(t))
+        except NameError:
+            u=v=0
         w = 0
-        water_depth = float(self.bathymetry_fun((lat, lon)))
+        try:
+            water_depth = float(self.bathymetry_fun((lat, lon)))
+        except ValueError:
+            if self._print_warnings:
+                print("Could not get water depth. Setting waterdepth to 200")
+            self._print_warnings=False
+            water_depth = 200
         eta = 0
         # z is given as negative, but fitted against depth...
         S = float(self.SA_fun(-z))

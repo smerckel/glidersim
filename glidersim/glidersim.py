@@ -279,7 +279,7 @@ class GliderMission(datastore.Data):
         return r
     
     def _npfy_data(self):
-        self.data = dict([(k,np.array(v)) for k,v in self.data.items()])
+        self.data = dict([(k,np.array(v, dtype=object)) for k,v in self.data.items()])
 
     def run(self,dt=1,CPUcycle=4,maxSimulationTime=None,
             end_on_surfacing=0):
