@@ -9,6 +9,8 @@ ImplementedBehaviors={'abend':behaviors.Abend,
                       'climb_to':behaviors.Climb_to,
                       'goto_list':behaviors.Goto_list,
                       'surface':behaviors.Surface,
+                      'sample': behaviors.Sample,
+                      'sensors_in':behaviors.Sensors_in,
                       'prepare_to_dive':behaviors.Prepare_to_dive,
                       'set_heading':behaviors.Set_heading}
 
@@ -69,7 +71,8 @@ class MafileParser(object):
             valueNum=float(value)
         b=self.behavior
         b.__dict__[param]=valueNum
-
+        b.b_arg_parameters.append(param)
+        
 class MafileParserWpt(MafileParser):
     def __init__(self,filename=None ,behavior=None, mafileDirectory='mafiles'):
         MafileParser.__init__(self,filename,behavior,mafileDirectory)
@@ -168,6 +171,7 @@ class MissionParser(object):
                 valueNum=float(value)
             b=self.behaviors[-1]
             b.__dict__[param]=valueNum
+            b.b_arg_parameters.append(param)
             if param=='args_from_file' and valueNum!=-1:
                 fn=b.behaviorName.lower()
                 if len(fn)>6:

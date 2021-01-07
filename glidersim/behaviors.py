@@ -1,9 +1,12 @@
-
-from .fsm import FSM
+try:
+    from .fsm import FSM
+except ImportError:
+    from glidersim.fsm import FSM
 import latlon
 from math import sqrt,pi,sin,cos
-from . import timeconversion
+import timeconversion
 from functools import reduce
+from collections import UserList, OrderedDict
 
 INPROGRESS=1
 TOQUIT=2
@@ -168,7 +171,19 @@ class UTC_Condition(object):
             return True
         else:
             return False
-        
+
+class UniqueList(UserList):
+    def __init__(self, initlist=None):
+        super().__init__(initlist)
+
+    def __iadd__(self, x):
+        for _x in x:
+            if _x in self:
+                continue
+            else:
+                self.append(_x)
+        return self
+            
 ###### Super class behaviors #######
 
 class Behavior(object):
@@ -177,7 +192,8 @@ class Behavior(object):
         self.b_arg_list=list(self.__dict__.keys())
         self.b_arg_list.remove('behaviorName')
         self.b_arg_list.sort()
-
+        self.b_arg_parameters = UniqueList()
+        
     def init(self):
         self.b_arg={}
         self.fsm=FSM('UnInited',[])
@@ -231,7 +247,20 @@ class Behavior(object):
         for i in self.b_arg_list:
             print("%s: %s "%(i,eval("self.%s"%(i))))
         print()
-        
+
+    def get_parameter_settings(self):
+        d = OrderedDict()
+        for k in self.b_arg_parameters:
+           d[k] = self.__dict__[k]
+        return d
+
+    def get_mafile_name(self):
+        try:
+            if self.args_from_file>=0:
+                s = f"{self.behaviorName[:6].lower()}{self.args_from_file:02d}.ma"
+        except AttributeError:
+            s =''
+        return s
 
 class WhenBehavior(Behavior):
     def __init__(self,
@@ -241,9 +270,10 @@ class WhenBehavior(Behavior):
         self.start_when=start_when
         self.when_secs=when_secs
         self.when_wpt_dist=when_wpt_dist
-
-    def init(self):
         Behavior.__init__(self)
+        self.b_arg_parameters+='start_when when_secs when_wpt_dist'.split()
+        
+    def init(self):
         Behavior.init(self)
         if self.start_when==0: # immediately
             #self.b_arg['start_when']=Condition('m_present_time','>',0,(None,None))
@@ -291,9 +321,10 @@ class DiveClimbBehavior(WhenBehavior):
         self.start_when=start_when           
         self.stop_when_hover_for=stop_when_hover_for  
         self.stop_when_stalled_for=stop_when_stalled_for
-
-    def init(self):
         WhenBehavior.__init__(self,self.start_when,when_secs=None,when_wpt_dist=None)
+        self.b_arg_parameters+='target_depth target_altitude use_bpump bpump_value use_pitch pitch_value start_when stop_when_hover_for stop_when_stalled_for'.split()
+        
+    def init(self):
         WhenBehavior.init(self)
         self.diveclimb=UpDownSettings(self.use_bpump,self.bpump_value,self.use_pitch,self.pitch_value)
         # condition when to stop
@@ -337,7 +368,7 @@ class UpDownSettings(object):
         self.bpump_value=bpump_value
         self.use_pitch=use_pitch
         self.pitch_value=pitch_value
-
+        
     def get_ballast_pumped(self):
         if self.use_bpump!=2:
             raise ValueError("Only use_bpump==2 implemented. Sorry.")
@@ -362,9 +393,10 @@ class Abend(Behavior):
         self.overtime=overtime     
         self.samedepth_for=samedepth_for
         self.behaviorName='Abend'
-                
-    def init(self):
         Behavior.__init__(self)
+        self.b_arg_parameters+='overdepth overtime samedepth_for'.split()
+        
+    def init(self):
         Behavior.init(self)
         # set defaults
         self.b_arg['overdepth']=Condition('m_depth','>',self.overdepth,(0,None))
@@ -427,9 +459,12 @@ class Surface(WhenBehavior):
         self.datatransfertime=datatransfertime
         self.gps_wait_time = gps_wait_time
         self.behaviorName='Surface'
-                
-    def init(self):
         WhenBehavior.__init__(self,self.start_when,self.when_secs,self.when_wpt_dist)
+        self.b_arg_parameters+='end_action end_wpt_dist c_use_bpump c_bpump_value c_use_pitch c_pitch_value keystroke_wait_time'.split()
+
+
+    def init(self):
+        #WhenBehavior.__init__(self,self.start_when,self.when_secs,self.when_wpt_dist)
         WhenBehavior.init(self)
         self.climb=UpDownSettings(self.c_use_bpump,self.c_bpump_value,self.c_use_pitch,self.c_pitch_value)
         
@@ -591,11 +626,12 @@ class Dive_to(DiveClimbBehavior):
         self.stop_when_hover_for=stop_when_hover_for  
         self.stop_when_stalled_for=stop_when_stalled_for
         self.behaviorName='Dive_to'
-        
-    def init(self):
         DiveClimbBehavior.__init__(self, self.target_depth,self.target_altitude,self.use_bpump,
                                    self.bpump_value,self.use_pitch,self.pitch_value,self.start_when,
                                    self.stop_when_hover_for,self.stop_when_stalled_for)
+        self.b_arg_parameters+='target_depth target_altitude use_bpump bpump_value use_pitch pitch_value start_when stop_when_hover_for stop_when_stalled_for'.split()
+        
+    def init(self):
         DiveClimbBehavior.init(self)
         # condition when to stop
         self.b_arg['stop_when'].addCondition('m_depth','>',self.target_depth,(0,None))
@@ -623,11 +659,11 @@ class Climb_to(DiveClimbBehavior):
         self.stop_when_hover_for=stop_when_hover_for  
         self.stop_when_stalled_for=stop_when_stalled_for
         self.behaviorName='Climb_to'
-
-    def init(self):
         DiveClimbBehavior.__init__(self, self.target_depth,self.target_altitude,self.use_bpump,
                                    self.bpump_value,self.use_pitch,self.pitch_value,self.start_when,
                                    self.stop_when_hover_for,self.stop_when_stalled_for)
+
+    def init(self):
         DiveClimbBehavior.init(self)
         # condition when to stop
         self.b_arg['stop_when'].addCondition('m_depth','<',self.target_depth,(0,None))
@@ -646,10 +682,10 @@ class Set_heading(WhenBehavior):
         self.heading_value=heading_value
         self.use_heading=use_heading
         self.behaviorName='Set_heading'
-
-    
-    def init(self):
         WhenBehavior.__init__(self,self.start_when,self.when_secs,0)
+        self.b_arg_parameters+='heading_value use_heading'.split()
+            
+    def init(self):
         WhenBehavior.init(self)
         if self.stop_when==0 or self.stop_when==5:
             self.b_arg['stop_when']=Flag(False)
@@ -730,9 +766,12 @@ class Yo(WhenBehavior):
         self.c_stop_when_stalled_for=c_stop_when_stalled_for  
         self.end_action=end_action                      
         self.behaviorName='Yo'
+        WhenBehavior.__init__(self,self.start_when,when_secs=None,when_wpt_dist=None) #<---
+        self.b_arg_parameters+='num_half_cycles_to_do d_target_altitude d_target_depth d_use_bpump d_use_pitch d_bpump_value d_pitch_value d_stop_when_hover_for d_stop_when_stalled_for'.split()
+        self.b_arg_parameters+='c_target_altitude c_target_depth c_use_bpump c_use_pitch c_bpump_value c_pitch_value c_stop_when_hover_for c_stop_when_stalled_for end_action'.split()
+        
 
     def init(self):
-        WhenBehavior.__init__(self,self.start_when,when_secs=None,when_wpt_dist=None) #<---
         WhenBehavior.init(self)                                                      #needs
                                                                                  #change
                                                                                  #for
@@ -853,9 +892,9 @@ class SGYo(Yo):
         self.d_pitch_value=d_pitch_value
         self.drag_coefficient=drag_coefficient
         self.behaviorName='SGYo'
+        WhenBehavior.__init__(self,self.start_when,when_secs=None,when_wpt_dist=None) #<---
 
     def init(self):
-        WhenBehavior.__init__(self,self.start_when,when_secs=None,when_wpt_dist=None) #<---
         WhenBehavior.init(self)                                                      #needs
                                                                                  #change
                                                                                  #for
@@ -918,10 +957,10 @@ class Goto_list(WhenBehavior):
             self.waypoints=list()
         self.activated_waypoints=[]
         self.behaviorName='Goto_list'
-
+        WhenBehavior.__init__(self,self.start_when,when_secs=None,when_wpt_dist=None) #<---
+        self.b_arg_parameters+='num_waypoints num_legs_to_run initial_wpt list_stop_when list_when_wpt_dist waypoints'.split()
 
     def init(self):
-        WhenBehavior.__init__(self,self.start_when,when_secs=None,when_wpt_dist=None) #<---
         WhenBehavior.init(self)                                                  #needs
                                                                                  #change
                                                                                  #for
@@ -1099,9 +1138,10 @@ class Prepare_to_dive(WhenBehavior):
         self.start_when=start_when
         self.wait_time=wait_time
         self.behaviorName='Prepare_to_dive'
-
-    def init(self):
         WhenBehavior.__init__(self,self.start_when,None,None)
+        self.b_arg_parameters+=['wait_time']
+        
+    def init(self):
         WhenBehavior.init(self)
         self.t0=None
         self.b_arg['stop_when']=Flag(False)
@@ -1137,3 +1177,61 @@ class Prepare_to_dive(WhenBehavior):
         self.gliderState['x_gps_lmc_x_dive']=self.gliderState['m_lmc_x']
         self.gliderState['x_gps_lmc_y_dive']=self.gliderState['m_lmc_y']
         self.gliderState['x_time_dive']=self.gliderState['m_present_time']
+
+
+# These behaviours do actually nothing, but allow for mission files to be parsed etc.
+
+class Sample(WhenBehavior):
+    def __init__(self,
+                 start_when=0):
+        self.start_when=start_when
+        self.behaviorName='Sample'
+        self.sensor_type=0
+        self.state_to_sample=1
+        self.sample_time_after_state_change=15
+        self.intersample_time=0
+        self.nth_yo_to_sample=1
+        self.intersample_depth = -1
+        self.min_depth=-5
+        self.max_depth=2000
+        WhenBehavior.__init__(self,self.start_when,None,None)
+        self.b_arg_parameters+='sensor_type state_to_sample sample_time_after_state_change intersample_time intersample_depth nth_yo_to_sample min_depth max_depth'.split()
+        
+    def init(self):
+        WhenBehavior.init(self)
+        #self.t0=None
+        #self.b_arg['stop_when']=Flag(False)
+        self.fsm.add_transition_any('UnInited',self.Active,'Active')
+        self.fsm.add_transition_any('Active',action=None, next_state=None)
+        CLRS.r(self.behaviorName+": "+self.fsm.current_state)
+
+    def Active(self,fsm):
+        CLRS.r(self.behaviorName+": "+fsm.current_state+"->"+fsm.next_state)
+        # We do actually nothing in this behaviour, just minimal implementation so we
+        # can easily read the parameters.
+        
+    def Complete(self,fsm):
+        pass
+        
+class Sensors_in(WhenBehavior):
+    def __init__(self,
+                 start_when=0):
+        self.start_when=start_when
+        self.behaviorName='Sensors_in'
+        WhenBehavior.__init__(self,self.start_when,None,None)
+        
+    def init(self):
+        WhenBehavior.init(self)
+        #self.t0=None
+        #self.b_arg['stop_when']=Flag(False)
+        self.fsm.add_transition_any('UnInited',self.Active,'Active')
+        self.fsm.add_transition_any('Active',action=None, next_state=None)
+        CLRS.r(self.behaviorName+": "+self.fsm.current_state)
+
+    def Active(self,fsm):
+        CLRS.r(self.behaviorName+": "+fsm.current_state+"->"+fsm.next_state)
+        # We do actually nothing in this behaviour, just minimal implementation so we
+        # can easily read the parameters.
+        
+    def Complete(self,fsm):
+        pass
