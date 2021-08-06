@@ -2,6 +2,7 @@ import datetime
 import json
 from urllib import request
 import os
+import logging
 
 import numpy as np
 import netCDF4
@@ -12,6 +13,9 @@ import latlonUTM
 import timeconversion
 import fast_gsw
 
+logger = logging.getLogger(name="environments")
+logger.setLevel(logging.INFO)
+
 class GliderData(object):
     ''' Class to compute environmental data based on glider data.
 
@@ -21,14 +25,19 @@ class GliderData(object):
     BATHYMETRY_FILENAME = '/home/lucas/working/git/LMC/data/bathymetry_CV.nc'
     GLIDERS_DIRECTORY = '/home/lucas/samba/gliders'
     AGE = 12 # Hours, use CTD data younger than this.
-    
-    def __init__(self, glider_name, gliders_directory=None):
+    NC_ELEVATION_NAME = 'elevation'
+    NC_ELEVATION_FACTOR = -1
+    NC_LAT_NAME = 'lat'
+    NC_LON_NAME = 'lon'
+
+    def __init__(self, glider_name, gliders_directory=None, bathymetry_filename=None):
         self.u_fun = None
         self.v_fun = None
         self.bathymetry_fun = None
         self.eos_fun = None
         self.glider_name = glider_name
         self.gliders_directory = gliders_directory or GliderData.GLIDERS_DIRECTORY
+        self.bathymetry_filename = bathymetry_filename or GliderData.BATHYMETRY_FILENAME
         self._print_warnings = True
         
     def read_bathymetry(self):
@@ -36,13 +45,10 @@ class GliderData(object):
 
         Sets self.bathymetry_fun
         '''
-        dataset = netCDF4.Dataset(self.BATHYMETRY_FILENAME, 'r', keepweakref=True)
-        #bathymetry = dataset.variables['bathymetry'][...].copy()
-        #lat = dataset.variables['latc'][...].copy()
-        #lon = dataset.variables['lonc'][...].copy()
-        bathymetry = -dataset.variables['elevation'][...].copy()
-        lat = dataset.variables['lat'][...].copy()
-        lon = dataset.variables['lon'][...].copy()
+        dataset = netCDF4.Dataset(self.bathymetry_filename, 'r', keepweakref=True)
+        bathymetry = self.NC_ELEVATION_FACTOR * dataset.variables[self.NC_ELEVATION_NAME][...].copy()
+        lat = dataset.variables[self.NC_LAT_NAME][...].copy()
+        lon = dataset.variables[self.NC_LON_NAME][...].copy()
         dataset.close()
         self.bathymetry_fun = RegularGridInterpolator((lat, lon), bathymetry)
 
@@ -56,15 +62,15 @@ class GliderData(object):
             C = np.ones_like(P)*4
             T = np.ones_like(P)*15
         else:
-            tmp = dbd.get_sync("sci_water_cond", "sci_water_temp sci_water_pressure".split())
+            tmp = dbd.get_sync(*"sci_water_cond sci_water_temp sci_water_pressure".split())
             t_last = tmp[0][-1]
             age = t_last - tmp[0]
-            t, C, T, P = tmp.compress(np.logical_and(tmp[1]>0, age<self.AGE*3600), axis=1)
+            t, C, T, P = np.compress(np.logical_and(tmp[1]>0, age<self.AGE*3600), tmp, axis=1)
             try:
-                _, u, v = dbd.get_sync("m_water_vx", ["m_water_vy"])
+                _, u, v = dbd.get_sync("m_water_vx", "m_water_vy")
             except dbdreader.DbdError:
                 try:
-                    _, u, v = dbd.get_sync("m_final_water_vx", ["m_final_water_vy"])
+                    _, u, v = dbd.get_sync("m_final_water_vx", "m_final_water_vy")
                 except dbdreader.DbdError:
                     u = np.array([0])
                     v = np.array([0])
@@ -145,6 +151,9 @@ class GliderData(object):
                 print("Could not get water depth. Setting waterdepth to 200")
             self._print_warnings=False
             water_depth = 200
+        if water_depth < 0:
+            logger.error(f"Waterdepth found to be negative ({water_depth}). It could be that the bathymetry is\n\tgiven with the opposite sign as expected.\n\tTry to reverse sign of glidersim.environts.NC_ELEVATION_FACTOR")
+        
         eta = 0
         # z is given as negative, but fitted against depth...
         S = float(self.SA_fun(-z))
@@ -160,30 +169,33 @@ class DriftModel(GliderData):
 
     These data are queried like:
 
-    curl "https://bn.hzg.de/cgi/input_drift.py?Time=2019_06_11_09_05&lat=54.99142&lon=5.01406&process_flag=1&Id=611625&Hours_nr=12&windfactors=0&Layer=-99" -o ./test.txt
+    curl "https://hcdc.hzg.de/lcgi/DriftApp/GetTrajectories.py?Id=952&Time=2019_08_09_15_20&windfactors=0&Layer=-99&StartPoint=[[6.12368,55.18006],[6.776032,54.668498]]&process_flag=1&Hours_nr=24" -o ./test.txt
 
     Bathymetry data are from a netcdf file.
     '''
     
     DATE_FORMAT_STR = "%d.%m.%Y %H:%M"
-    INTERPOLATION_METHOD = 'quadratic'
-    #INTERPOLATION_METHOD = 'linear'
+    INTERPOLATION_METHOD = 'quadratic' # or 'linear'
     
-    def __init__(self, glider_name, download_time=12):
-        super().__init__(glider_name)
+    def __init__(self, glider_name, download_time=12, gliders_directory=None, bathymetry_filename=None):
+        super().__init__(glider_name, gliders_directory, bathymetry_filename)
         self.download_time = download_time
         
     def download_drift_data(self, t, lat, lon):
+        logger.info("Requesting current info from DrfitApp-server...")
         dt = datetime.datetime.utcfromtimestamp(t)
         tstr = "{:4d}_{:02d}_{:02d}_{:02d}_{:02d}".format(dt.year,
                                                           dt.month,
                                                           dt.day,
                                                           dt.hour,
                                                           dt.minute)
-        s = "https://bn.hzg.de/cgi/input_drift.py?Time={}&lat={:3f}&lon={:3f}&process_flag=1&Id=611625&Hours_nr={:d}&windfactors=0&Layer=-99"
-        url_address = s.format(tstr, lat, lon, self.download_time)
+        s = "https://hcdc.hzg.de/lcgi/DriftApp/GetTrajectories.py?Id=952&Time={}&windfactors=0&Layer=-99&StartPoint=[{:3f},{:3f}]&process_flag=1&Hours_nr={:d}"
+
+        #s = "https://bn.hereon.de/cgi/input_drift.py?Time={}&lat={:3f}&lon={:3f}&process_flag=1&Id=611625&Hours_nr={:d}&windfactors=0&Layer=-99"
+        url_address = s.format(tstr, lon, lat, self.download_time)
         u = request.urlopen(url_address)
         data = u.read()
+        logger.info("Request processed.")
         return self.parse_data(data)
 
         
@@ -197,7 +209,7 @@ class DriftModel(GliderData):
         y = []
         t = []
         zone = None
-        for _lon, _lat, tstr in json_data['Forward_output']:
+        for _lon, _lat, *_, tstr in json_data['Forward_output']:
             _t = timeconversion.strptimeToEpoch(tstr, self.DATE_FORMAT_STR)
             t.append(_t)
             (_x, _y), _zone, _ = latlonUTM.latlon2UTM(_lat, _lon)

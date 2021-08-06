@@ -1,11 +1,16 @@
+from math import atan2, pi,sqrt
+import numpy as np
+import os
+import logging
+
 from . import glidermodels
 from . import behaviors
 from . import parser
-from math import atan2, pi,sqrt
 from . import datastore
-import numpy as np
-import os
 from .glidermodels import GliderException
+
+logger = logging.getLogger(name='glidersim')
+logger.setLevel(logging.INFO)
 
 MISSIONS = 'missions'
 MAFILES = 'mafiles'
@@ -219,7 +224,7 @@ class GliderMission(datastore.Data):
                         self.longtermParameters.append(parameter)
                     value=float(words[1])
                     self.sensor(parameter,value)
-                    print("setting: ",line)
+                    logger.info(f"setting: {line}")
 
     def savelongterm(self,longterm_filename=None):
         if longterm_filename!=None:
@@ -227,11 +232,12 @@ class GliderMission(datastore.Data):
             for p in self.longtermParameters:
                 fd.write("%s %f\n"%(p,self.glider.gs[p]))
             fd.close()
-            print("Longterm state file successfully written.")
+            logger.info("Longterm state file successfully written.")
         
     def loadmission(self,mission=None,verbose=True, use_glider_directory_structure=True):
         if not mission:
             if not self.mission:
+                logger.error("No mission name supplied!")
                 raise ValueError("No mission name supplied!")
             else:
                 mission=self.mission
@@ -263,12 +269,12 @@ class GliderMission(datastore.Data):
     def sensor(self,parameter,value):
         if parameter in self.glider.gs:
             if value==None:
-                print("Setting sensor %s failed (value==None)"%(parameter))
+                logger.warning("Setting sensor %s failed (value==None)"%(parameter))
             else:
-                print("setting sensor value %s=%f"%(parameter,value))
+                logger.info("setting sensor value %s=%f"%(parameter,value))
                 self.glider.gs[parameter]=value
         else:
-            print("Ignoring sensor setting %s (sensor is not used)"%(parameter))
+            logger.info("Ignoring sensor setting %s (sensor is not used)"%(parameter))
 
     def check_if_on_surface(self):
         r=False
@@ -301,20 +307,12 @@ class GliderMission(datastore.Data):
         self.glider.gs['c_fin']=self.glider.finmotor.set_commanded(0)        
         subcycle_time = 1e3 # make sure we update LC on the first round.
         simulationTime = self.glider.gs['m_present_time']
+        behaviors.VERBOSE = self.verbose
         while 1:
-                
             if subcycle_time>=CPUcycle: # a new cpucycle
                 b,p,f=self.LC.cycle(self.glider.gs)
                 subcycle_time=0
-                if behaviors.VERBOSE==True:
-                    print("Time:", simulationTime)
-                    print("m_depth:", self.glider.gs['m_depth'])
-                    print("hover for:", self.glider.gs['hover_for'])
-                    print("pitch stack:",self.glider.gs['pitch_stack'])
-                    print("pump stack:",self.glider.gs['bpump_stack'])
-                    print("fin stack:",self.glider.gs['fin_stack'])
-                    print("ballast pumped:",self.glider.gs['c_ballast_pumped'],self.glider.gs['m_ballast_pumped'])
-                    print()
+                self.printInfo()
                 
             if self.glider.gs['m_depth']<0.1: # at the surface:
                 f=0 # set fin to 0
@@ -339,45 +337,36 @@ class GliderMission(datastore.Data):
             if self.glider.gs['m_depth']>1300:
                 raise ValueError('Whoops! Sinking to the depths...!')
             if maxSimulationTime and self.glider.gs['m_present_secs_into_mission']>maxSimulationTime*86400.:
-                print("Mission exceeding simulation time.") 
+                logger.info("Mission exceeding simulation time.") 
                 break
 
             if end_on_surfacing:
                 if self.check_if_on_surface():
-                    print("Glider is on surface...", end=' ')
+                    s = "Glider is on surface... "
                     end_on_surfacing-=1
                     if end_on_surfacing==0:
-                        print("Ending mission")
+                        logger.info(s+"Ending mission because of end_on_surfacing is set.")
                         self.add_data(force_data_write=True)
                         break
                     else:
-                        print("Continuing")
+                        logger.info(s+"Continuing")
 
             self.glider.update(simulationTime,dt)
             self.add_data()
             simulationTime+=dt
             subcycle_time+=dt
-            if self.verbose:
-                print("Depth: %.2f"%(self.glider.gs['m_depth']))
         # mission is finialised. End of while 1:
 
         if behaviors.Behavior.MS&behaviors.COMPLETED:
-            print("Mission completed.")
+            logger.info("Mission completed.")
         else:
             for k,v in behaviors.ABORTS.items():
                 if behaviors.Behavior.MS&v:
-                    print("Mission abort: %s"%(k.upper()))
+                    logger.info("Mission abort: %s"%(k.upper()))
         self._npfy_data()
 
-
-if __name__=='__main__':
-    GM=GliderMission('gb.mi',datestr='20100519',timestr="00:30",lat=5410.000,lon=800.000,
-                     directory='nc')
-    GM.loadmission()
-    input("Enter to start")
-    GM.run()
-    GM.save('run.pck')
-
-    t=np.asarray(GM.data['m_present_secs_into_mission'])
-    y=-np.asarray(GM.data['m_depth'])
-    rho=np.asarray(GM.data['rho'])
+    def printInfo(self):
+        gs = self.gs
+        s = f"MT: {gs['m_present_secs_into_mission']}; depth:{gs['m_depth']:5.1f} m; buoyancy:{gs['m_ballast_pumped']:+5.0f} cc; "
+        s += f" lat:{gs['x_lat']:+6.2f}; lon:{gs['x_lon']:+6.2f}; waterdepth:{gs['water_depth']:5.1f}" 
+        logger.info(s)

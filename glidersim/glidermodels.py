@@ -6,7 +6,11 @@ import numpy as np
 from timeconversion import strptimeToEpoch
 import gliderflight
 import random
-    
+import logging
+
+logger = logging.getLogger(name="glidermodels")
+logger.setLevel(logging.INFO)
+
 class GliderException(Exception): pass
 
 class GPS(object):
@@ -463,6 +467,7 @@ class BaseGliderModel(object):
                             # mimicking the continuation of the the
                             # mission. This affects the behavior
                             # goto_l
+        gs['m_mission_start_time']=gs['m_present_time']
         self.gs=gs
 
 
@@ -739,19 +744,19 @@ class GliderFlightModel(gliderflight.DynamicGliderModel):
 # subclasses of BaseGliderModel
 class Shallow100mGliderModel(BaseGliderModel, SlocumShallow100Hardware):
     def __init__(self, dt, rho0, environment_model):
-        print("Initialising SLOCUM 100 m glider")
+        logger.info("Initialising SLOCUM 100 m glider")
         BaseGliderModel.__init__(self, dt, rho0, environment_model)
         SlocumShallow100Hardware.__init__(self)
 
 class DeepGliderModel(BaseGliderModel,SlocumDeepHardware):
     def __init__(self, dt, rho0, environment_model):
-        print("Initialising SLOCUM 1000 m glider")
+        logger.info("Initialising SLOCUM 1000 m glider")
         BaseGliderModel.__init__(self, dt, rho0, environment_model)
         SlocumDeepHardware.__init__(self)
 
 class DeepExtendedGliderModel(BaseGliderModel,SlocumDeepExtendedHardware):
     def __init__(self, dt, rho0, environment_model):
-        print("Initialising SLOCUM 1000 m glider with Extended buoyancy pump")
+        logger.info("Initialising SLOCUM 1000 m glider with Extended buoyancy pump")
         BaseGliderModel.__init__(self, dt, rho0, environment_model)
         SlocumDeepHardware.__init__(self)
 

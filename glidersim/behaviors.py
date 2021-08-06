@@ -8,6 +8,11 @@ import timeconversion
 from functools import reduce
 from collections import UserList, OrderedDict
 
+import logging
+
+logger = logging.getLogger("behaviors")
+logger.setLevel(logging.INFO)
+
 INPROGRESS=1
 TOQUIT=2
 COMPLETED=4
@@ -35,7 +40,7 @@ class CLRS:
     @classmethod    
     def __prt__(self,str):
         if VERBOSE:
-            print(str)
+            logger.info(str)
     @classmethod
     def y(self,str):
         self.__prt__(CLRS.WARNING+str+CLRS.ENDC)
@@ -55,6 +60,10 @@ class CLRS:
     @classmethod
     def w(self,str):
         self.__prt__(str)
+
+    @classmethod
+    def m(self,str):
+        self.__prt__(CLRS.HEADER+str+CLRS.ENDC)
 
 
 class Condition(object):
@@ -102,6 +111,7 @@ class Condition(object):
         self.check_input()
 
     def check_param(self,gs,parameter,value,valuerange,operator):
+        #print(f"Check param {parameter}, {value}, {valuerange}, {operator} Actual value: {gs[parameter]}", end='')
         if parameter not in gs:
             raise ValueError("glider status has not required parameter")
         if (value<=valuerange[1] and value>=valuerange[0]) or \
@@ -109,6 +119,7 @@ class Condition(object):
             r=eval("%s%s%s"%(gs[parameter],operator,value))
         else:
             r=False
+        #print(f" Result: {r}")
         return r
     def check_params(self,gs):
         rs=[]
@@ -243,10 +254,10 @@ class Behavior(object):
         CLRS.b("Mission Status: %s"%(Behavior.MS))
 
     def printInfo(self):
-        print("Behavior: ",self.behaviorName)
+        CLRS.y(f"Behavior: {self.behaviorName}")
         for i in self.b_arg_list:
-            print("%s: %s "%(i,eval("self.%s"%(i))))
-        print()
+            CLRS.y("%s: %s "%(i,eval("self.%s"%(i))))
+        CLRS.y("")
 
     def get_parameter_settings(self):
         d = OrderedDict()
@@ -637,7 +648,7 @@ class Dive_to(DiveClimbBehavior):
         self.b_arg['stop_when'].addCondition('m_depth','>',self.target_depth,(0,None))
         CLRS.r(self.behaviorName+": "+self.fsm.current_state)
         CLRS.b("target_depth %f"%(self.target_depth))
-
+        
 class Climb_to(DiveClimbBehavior):
     def __init__(self,
                  target_depth=10,
@@ -1058,14 +1069,14 @@ class Goto_list(WhenBehavior):
         last_wpt_lat=self.gliderState['x_last_wpt_lat']
         last_wpt_lon=self.gliderState['x_last_wpt_lon']
         found=-1
-        print("last achieved lat/lon",last_wpt_lat,last_wpt_lon)
-        print("Waypoint list:")
+        CLRS.b("last achieved lat/lon",last_wpt_lat,last_wpt_lon)
+        CLRS.b("Waypoint list:")
         for i,(lon,lat) in enumerate(self.waypoints):
-            print(i,lat,lon)
+            CLRS.b(i,lat,lon)
         for i,(lon,lat) in enumerate(self.waypoints):
             if abs(lon-last_wpt_lon)<1e-4 and abs(lat-last_wpt_lat)<1e-4:
                 found=i
-                print("Waypoint found:", "(%d)"%(i),lat,lon)
+                CLRS.b("Waypoint found:", "(%d)"%(i),lat,lon)
                 break
         if found!=-1:
             # last achieved waypoint in the list
@@ -1081,19 +1092,19 @@ class Goto_list(WhenBehavior):
         c_wpt_lat=self.gliderState['c_wpt_lat']
         c_wpt_lon=self.gliderState['c_wpt_lon']
         found=-1
-        print("Preset waypoint lat/lon",c_wpt_lat,c_wpt_lon)
-        print("Waypoint list:")
+        logger.info("Preset waypoint lat/lon",c_wpt_lat,c_wpt_lon)
+        logger.info("Waypoint list:")
         for i,(lon,lat) in enumerate(self.waypoints):
-            print(i,lat,lon)
+            logger.info(i,lat,lon)
         for i,(lon,lat) in enumerate(self.waypoints):
             if abs(lon-c_wpt_lon)<1e-4 and abs(lat-c_wpt_lat)<1e-4:
                 found=i
-                print("Waypoint found:", "(%d)"%(i),lat,lon)
+                logger.info("Waypoint found:", "(%d)"%(i),lat,lon)
                 break
         if found==-1:
             # should not happen, then something went wrong.
-            print("Preset waypoint is not found in the waypoint list, assuming new mission start.")
-            print("Waypoint: ",self.waypoints[0])
+            logger.warning("Preset waypoint is not found in the waypoint list, assuming new mission start.")
+            logger.warning("Waypoint: ",self.waypoints[0])
             found=0
         return found
         
@@ -1122,9 +1133,9 @@ class Goto_list(WhenBehavior):
                                 self.gliderState['c_wpt_lon'],
                                 self.gliderState['c_wpt_lmc_x'],
                                 self.gliderState['c_wpt_lmc_y']))
-        print("New waypoint: %f %f. Mission time (hr): %.2f"%(self.gliderState['c_wpt_lat'],
-                                                            self.gliderState['c_wpt_lon'],
-                                                            self.gliderState['m_present_secs_into_mission']/3600))
+        CLRS.b("New waypoint: %f %f. Mission time (hr): %.2f"%(self.gliderState['c_wpt_lat'],
+                                                               self.gliderState['c_wpt_lon'],
+                                                               self.gliderState['m_present_secs_into_mission']/3600))
         self.activeWaypoint=r
         self.activated_waypoints.append((self.gliderState['m_present_time'],
                                          self.waypoints[r]))
