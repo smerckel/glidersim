@@ -1,6 +1,10 @@
+import os
+
 import numpy as np
 from latlon import convertToDecimal
 import pickle
+
+from HZGnetCDF import ncHereon
 
 class Data(object):
     def __init__(self,gs={},period=10):
@@ -24,19 +28,39 @@ class Data(object):
             s=" ".join(["%s"%(self.data[k][i].__str__()) for k in keys])
             fd.write(s+"\n")
         fd.close()
-        
+
+    def __save_nc(self, fn):
+        k_tm = "m_present_time"
+        k_ignore = ["utm_0"]
+        tm = self.data[k_tm]
+        opts = dict(title="Results of glidersim model",
+                    source="n.a.",
+                    originator="n.a.")
+                    
+        with ncHereon(fn, **opts) as nc:
+            for k in self.data.keys():
+                if k==k_tm:
+                    continue
+                if k in k_ignore:
+                    continue
+                nc.add_parameter(k,'-', tm, self.data[k])
+                
         
     def __load_pickle(self,fn):
         with open(fn,'rb') as fd:
             self.data=pickle.load(fd)
 
-    def save(self,fn=None,data_format='pickle'):
+    def save(self,fn=None,data_format=None):
         ''' '''
-        if fn==None:
-            fn=self.output
-        if data_format=='pickle':
+        fn = fn or self.output
+        _, extension = os.path.splitext(fn)
+        s = extension.lower()[1:]
+        data_format = data_format or s
+        if data_format == 'pck':
             self.__save_pickle(fn)
-        else:
+        elif data_format == 'nc':
+            self.__save_nc(fn)
+        elif data_format in ['asc', 'txt']:
             self.__save_ascii(fn)
 
     def get(self,parameter):
