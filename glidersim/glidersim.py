@@ -173,11 +173,13 @@ class LayeredControl(object):
 
             
 class GliderMission(datastore.Data):
-    def __init__(self,config,glidermodel=None,environment_model=None, interactive=True, verbose=True):
+    def __init__(self,config,glider_model=None,environment_model=None, interactive=True, verbose=True):
         if interactive:
             config.checkOutputFilename()
-        if glidermodel is None:
+        if glider_model is None:
             raise ValueError("No glider model specified. Try ShallowGliderModel for example.")
+        if environment_model is None:
+            raise ValueError("No environemnt model specified.")
         self.verbose=verbose
         
         datestr=config.datestr
@@ -194,16 +196,11 @@ class GliderMission(datastore.Data):
         self.longtermParameters=config.longtermParameters
 
         self.datatransfertime=0.
-
-        self.glider=glidermodel(dt, rho0, environment_model)
+        self.mission_initialisation_time=0.
+        
+        self.glider=glider_model
+        self.glider.environment_model = environment_model
         self.glider.initialise_gliderstate(datestr, timestr, lat, lon, mission_start)
-        self.glider.initialise_gliderflightmodel(Cd0=config.Cd0,
-                                                 ah=config.ah,
-                                                 Vg=config.Vg,
-                                                 mg=config.mg,
-                                                 T1 = config.T1,
-                                                 T2 = config.T2,
-                                                 T3 = config.T3)
         self.LC=LayeredControl()
         # set the PIDs for LC, as they are hardware dependent:
         self.LC.set_PIDS(self.glider.finPID,self.glider.pitchPID)
@@ -297,9 +294,10 @@ class GliderMission(datastore.Data):
             Stops simulation when glider surfaces via a surfacing 
             behavior for nth time.
         '''
-        if self.glider.gs['_pickup'] == True: # we're continuing an existing mission (affects goto_l behavior only)
-            self.glider.gs['time_since_cycle_start']=self.datatransfertime
-
+        # make sure that the glider flight model is run with the same time step as the hardware is updated.
+        self.glider.gliderflight_model.dt = dt
+        
+        behaviors.VERBOSE = self.verbose
         behaviors.Behavior.MS=0
         # surface conditions:
         self.glider.gs['c_ballast_pumped']=self.glider.buoyancypump.set_commanded(1000)        
@@ -307,8 +305,17 @@ class GliderMission(datastore.Data):
         self.glider.gs['c_fin']=self.glider.finmotor.set_commanded(0)        
         subcycle_time = 1e3 # make sure we update LC on the first round.
         simulationTime = self.glider.gs['m_present_time']
-        behaviors.VERBOSE = self.verbose
-        while 1:
+        
+        if self.glider.gs['_pickup'] == True: # we're continuing an existing mission (affects goto_l behavior only)
+            self.glider.gs['time_since_cycle_start']=self.datatransfertime
+        else:
+            # new mission start, simulate mission initialisation
+            mission_initialised_time = simulationTime + self.mission_initialisation_time
+            while simulationTime < mission_initialised_time:
+                self.glider.update(simulationTime,dt)
+                self.add_data()
+                simulationTime+=dt
+        while True:
             if subcycle_time>=CPUcycle: # a new cpucycle
                 b,p,f=self.LC.cycle(self.glider.gs)
                 subcycle_time=0

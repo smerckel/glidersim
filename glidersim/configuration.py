@@ -27,14 +27,6 @@ class Config(object):
         self.sensor_settings={}
         self.special_settings={}
         self.longtermParameters=[]
-        # gliderflight parameters
-        self.Cd0 = None
-        self.Vg = None
-        self.mg = None
-        self.ah = 3.7
-        self.T1 = 1235
-        self.T2 = -28.8
-        self.T3 = 0.14
         for k,v in kw.items():
             self.__dict__[k]=v
 

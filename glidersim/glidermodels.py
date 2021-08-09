@@ -1,3 +1,4 @@
+from collections import deque
 import math
 from latlonUTM import UTM2latlon, latlon2UTM
 from latlon import convertToNmea, convertToDecimal
@@ -26,7 +27,7 @@ class GPS(object):
         self.enabled=False
 
     def get_status(self,t,z):
-        if z>0.1:
+        if z<-.1: # underwater
             self.status=2
             self.time=t
         else:
@@ -350,29 +351,29 @@ class SlocumDeepExtendedHardware(object):
         
 
 class BaseGliderModel(object):
-    def __init__(self, dt, rho0, environment_model=None):
+    def __init__(self):
         self.gps=GPS()
         self.lmc_x = 0
         self.lmc_y = 0
         self.lmc_z = 0
 
         self.x = self.y = self.z = 0 # real coordinates
-        self.gliderflight_model =  GliderFlightModel(dt, rho0)
+        self.gliderflight_model =  GliderFlightModel()
 
         # Glider Hardware, to be subclassed.
         self.buoyancypump = None
         self.pitchmotor = None
         self.finmotor = None
         #
-        self.environment_model = environment_model
-
-    def initialise_gliderflightmodel(self, Cd0, ah, Vg, mg, T1=1235, T2=-28.8, T3=0.14, **kwds):
+        self.environment_model = None # to be set later.
+        self._speed_deque = deque(maxlen=60//4) # used for moving avg of speed.
+        
+    def initialise_gliderflightmodel(self, Cd0, Vg, mg, T1=1235, T2=-28.8, T3=0.14, T4=0, **kwds):
         gfm = self.gliderflight_model
         gfm.define(Cd0=Cd0)
-        gfm.define(ah=ah)
         gfm.define(Vg=Vg)
         gfm.define(mg=mg)
-        gfm.pitch_model_parameters = (T1, T2, T3)
+        gfm.pitch_model_parameters = (T1, T2, T3, T4)
         if kwds:
             gfm.define(**kwds)
         
@@ -430,9 +431,12 @@ class BaseGliderModel(object):
         gs['x_lmc_z']=0
         gs['m_gps_status']=0
         gs['c_gps_on']=0
-        utm_0=latlon2UTM(convertToDecimal(lat),
-                         convertToDecimal(lon))
-        gs['utm_0']=None
+        if lat and lon:
+            utm_0=latlon2UTM(convertToDecimal(lat),
+                             convertToDecimal(lon))
+        else:
+            utm_0 = None
+        gs['utm_0'] = utm_0
         gs['x_u']=0.
         gs['x_v']=0.
         gs['x_w']=0.
@@ -442,7 +446,6 @@ class BaseGliderModel(object):
         gs['water_depth']=0.
         gs['m_speed']=0.
         gs['x_speed']=0.
-        gs['x_cycle_index']=0
         gs['u_use_current_correction']=0
         gs['m_water_vx']=0.
         gs['m_water_vy']=0.
@@ -468,6 +471,7 @@ class BaseGliderModel(object):
                             # mission. This affects the behavior
                             # goto_l
         gs['m_mission_start_time']=gs['m_present_time']
+        gs['m_pressure']=0
         self.gs=gs
 
 
@@ -535,7 +539,7 @@ class BaseGliderModel(object):
         p = [self.gs[i] for i in 'm_present_time m_heading m_heading_rate m_fin m_speed'.split()]
         m_heading, m_heading_rate = self.gliderflight_model.compute_heading_from_fin(*p)
 
-        p = [self.gs[i] for i in 'm_battpos m_ballast_pumped'.split()]
+        p = [self.gs[i] for i in 'm_battpos m_ballast_pumped m_pressure'.split()]
         m_pitch = self.gliderflight_model.compute_pitch_from_battpos_buoyancy_drive(*p)
 
         # update glider state with new variables:
@@ -562,9 +566,8 @@ class BaseGliderModel(object):
         self.gs['x_speed']=speed
         # use Kalman filter to estiamte running average
         if speed>0: # not at the surface
-            self.gs['x_cycle_index']+=1
-            k=self.gs['x_cycle_index']
-            self.gs['m_speed']=(1./float(k))*((k-1)*self.gs['m_speed']+speed)
+            self._speed_deque.append(speed)
+            self.gs['m_speed']=np.mean(self._speed_deque)
                             
 
         # update real position of the glider:
@@ -574,6 +577,7 @@ class BaseGliderModel(object):
 
         # update new position (dead reckoned)
         self.gs['m_depth'] = - self.z
+        self.gs['m_pressure'] = max(0, -self.z * rho *9.81 * 1e-5)
         if self.gs['m_gps_status']==0:
             # at the surface, and got a signal.
             self.lmc_x=self.x
@@ -625,7 +629,7 @@ class BaseGliderModel(object):
 
     
 class FinModel(object):
-    def __init__(self, c0=1.77, c1=-0.0323):
+    def __init__(self, c0=0.5, c1=15.):
         self.c0 = c0
         self.c1 = c1
         self.sigma_noise=0.01
@@ -635,8 +639,10 @@ class FinModel(object):
     
     def compute_heading_rate(self, dt, m_fin, m_speed, m_heading_rate):
         m_fin += self.noise()
-        m_heading_rate = self.c0 * m_fin * m_speed**2 - self.c1 * m_heading_rate/dt
-        m_heading_rate /= 1 - self.c1/dt
+        
+        m_heading_rate = self.c0/self.c1*np.sin(m_fin)*m_speed**2*dt + m_heading_rate*(1-dt/2/self.c1)
+        m_heading_rate /= 1+dt/2/self.c1
+
         return m_heading_rate
     
 
@@ -651,7 +657,7 @@ class GliderFlightModel(gliderflight.DynamicGliderModel):
     def __init__(self, dt=None, rho0=None, k1=0.20, k2=0.92, alpha_linear=90, alpha_stall=90,
                  max_depth_considered_surface=0.5):
         super().__init__(dt, rho0, k1, k2, max_depth_considered_surface=max_depth_considered_surface)
-        self.pitch_model_parameters=(1235,-28.8, 0.138) # T1, T2 and T3 from glidertrim program.
+        self.pitch_model_parameters=(1235,-28.8, 0.138, 0) # T1, T2, T3 and T4from glidertrim program.
         self.fin_model = FinModel()
         
     def step_integrate(self, x, y, z, u, v, w, pitch, rho, buoyancy_change, heading):
@@ -733,31 +739,33 @@ class GliderFlightModel(gliderflight.DynamicGliderModel):
         heading %= np.pi*2
         return heading, heading_rate
 
-    def compute_pitch_from_battpos_buoyancy_drive(self, m_battpos, m_ballast_pumped):
-        battpos = m_battpos*2.56e-2
-        Vp = m_ballast_pumped*1e-6
-        T1, T2, T3 = self.pitch_model_parameters
-        tanpitch=T1*Vp + T2*battpos + T3
+    def compute_pitch_from_battpos_buoyancy_drive(self, m_battpos, m_ballast_pumped, m_pressure):
+        battpos = m_battpos*2.56e-2 # m
+        Vp = m_ballast_pumped*1e-6  # m^3
+        P = m_pressure * 1e-3        # kbar
+        T1, T2, T3, T4 = self.pitch_model_parameters
+        tanpitch=T1*Vp + T2*battpos + T3 + T4 * P
         return np.arctan(tanpitch)
+
 
    
 # subclasses of BaseGliderModel
 class Shallow100mGliderModel(BaseGliderModel, SlocumShallow100Hardware):
-    def __init__(self, dt, rho0, environment_model):
+    def __init__(self):
         logger.info("Initialising SLOCUM 100 m glider")
-        BaseGliderModel.__init__(self, dt, rho0, environment_model)
+        BaseGliderModel.__init__(self)
         SlocumShallow100Hardware.__init__(self)
 
 class DeepGliderModel(BaseGliderModel,SlocumDeepHardware):
-    def __init__(self, dt, rho0, environment_model):
+    def __init__(self):
         logger.info("Initialising SLOCUM 1000 m glider")
-        BaseGliderModel.__init__(self, dt, rho0, environment_model)
+        BaseGliderModel.__init__(self)
         SlocumDeepHardware.__init__(self)
 
 class DeepExtendedGliderModel(BaseGliderModel,SlocumDeepExtendedHardware):
-    def __init__(self, dt, rho0, environment_model):
+    def __init__(self):
         logger.info("Initialising SLOCUM 1000 m glider with Extended buoyancy pump")
-        BaseGliderModel.__init__(self, dt, rho0, environment_model)
+        BaseGliderModel.__init__(self)
         SlocumDeepHardware.__init__(self)
 
         

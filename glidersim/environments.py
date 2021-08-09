@@ -29,7 +29,8 @@ class GliderData(object):
     NC_ELEVATION_FACTOR = -1
     NC_LAT_NAME = 'lat'
     NC_LON_NAME = 'lon'
-
+    DBDREADER_CACHEDIR = None
+    
     def __init__(self, glider_name, gliders_directory=None, bathymetry_filename=None):
         self.u_fun = None
         self.v_fun = None
@@ -54,13 +55,15 @@ class GliderData(object):
 
     def read_gliderdata(self, lat, lon):
         path = os.path.join(self.gliders_directory, self.glider_name, 'from-glider', '%s*.[st]bd'%(self.glider_name))
-        dbd = dbdreader.MultiDBD(pattern=path)
+        dbd = dbdreader.MultiDBD(pattern=path, cacheDir=self.DBDREADER_CACHEDIR)
         if self.glider_name == 'sim':
             print("Warning: assuming simulator. I am making up CTD data!")
             t, P = dbd.get("m_depth")
             P/=10
             C = np.ones_like(P)*4
             T = np.ones_like(P)*15
+            u = np.zeros(1, float)
+            v = u.copy()
         else:
             tmp = dbd.get_sync(*"sci_water_cond sci_water_temp sci_water_pressure".split())
             t_last = tmp[0][-1]
@@ -74,8 +77,8 @@ class GliderData(object):
                 except dbdreader.DbdError:
                     u = np.array([0])
                     v = np.array([0])
-                               
             u, v = np.compress(np.logical_and(np.abs(u)<1.5, np.abs(v)<1.5), [u, v], axis=1)
+        dbd.close()
         rho = fast_gsw.rho(C*10, T, P*10, lon, lat)
         SA = fast_gsw.SA(C*10, T, P*10, lon, lat)
         # compute the age of each measurement, and the resulting weight.
