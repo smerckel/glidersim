@@ -1,0 +1,9 @@
+# Python virtual environment
+venv/
+# Compiled Python files
+*.pyc
+# Build directory
+build/
+# Backup files from emacs
+*~
+*#
