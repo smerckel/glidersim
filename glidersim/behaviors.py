@@ -529,7 +529,6 @@ class Surface(WhenBehavior):
         self.gliderState['stalled_for']=0
         self.gliderState['samedepth_for']=0.
         #
-        self.gliderState['x_cycle_index']=0
         self.gliderState['m_segment_number']+=1
 
     def WaitForGPS(self,fsm):
@@ -1031,6 +1030,7 @@ class Goto_list(WhenBehavior):
         dist=sqrt((x0-x1)**2+(y0-y1)**2)
         self.gliderState['m_dist_to_wpt']=dist
         CLRS.w("distance to waypoint: %f"%(dist))
+        print("distance to waypoint: %f %f %f"%(dist, self.list_when_wpt_dist, self.list_stop_when))
         if self.list_stop_when==7 and dist<=self.list_when_wpt_dist:
             self.achievedWaypoints+=1
             self.gliderState['x_last_wpt_lat']=self.waypoints[r][1]
@@ -1092,19 +1092,19 @@ class Goto_list(WhenBehavior):
         c_wpt_lat=self.gliderState['c_wpt_lat']
         c_wpt_lon=self.gliderState['c_wpt_lon']
         found=-1
-        logger.info("Preset waypoint lat/lon",c_wpt_lat,c_wpt_lon)
+        logger.info(f"Preset waypoint lat: {c_wpt_lat:6.3f}, lon: {c_wpt_lon:6.3f}")
         logger.info("Waypoint list:")
         for i,(lon,lat) in enumerate(self.waypoints):
-            logger.info(i,lat,lon)
+            logger.info(f"#{i}: {lat:6.3f}, {lon:6.3f}")
         for i,(lon,lat) in enumerate(self.waypoints):
             if abs(lon-c_wpt_lon)<1e-4 and abs(lat-c_wpt_lat)<1e-4:
                 found=i
-                logger.info("Waypoint found:", "(%d)"%(i),lat,lon)
+                logger.info(f"Waypoint found: ({i}) {lat:6.3f} {lon:6.3f}")
                 break
         if found==-1:
             # should not happen, then something went wrong.
             logger.warning("Preset waypoint is not found in the waypoint list, assuming new mission start.")
-            logger.warning("Waypoint: ",self.waypoints[0])
+            logger.warning(f"Waypoint: {self.waypoints[0][0]:6.3f}, {self.waypoints[0][1]:6.3f}")
             found=0
         return found
         
