@@ -1,18 +1,21 @@
 from collections import deque
+import glob
 import math
+import random
+
+import arrow
+import numpy as np
+
 from latlonUTM import UTM2latlon, latlon2UTM
 from latlon import convertToNmea, convertToDecimal
-import glob
-import numpy as np
-from timeconversion import strptimeToEpoch
 import gliderflight
-import random
-import logging
 
-logger = logging.getLogger(name="glidermodels")
-logger.setLevel(logging.INFO)
+from . import common
+
+logger = common.get_logger("glidermodels")
 
 class GliderException(Exception): pass
+
 
 class GPS(object):
     def __init__(self,acquiretime=30):
@@ -40,6 +43,8 @@ class GPS(object):
         if not self.enabled:
             self.status*=(-1)
         return self.status
+
+
 
 class PID(object):
     def __init__(self,Kp=1.,Ki=1.0,Kd=1.0):
@@ -69,6 +74,7 @@ class PID(object):
         self.t=None
         self.ecum=0
         self.e=0.
+
 
 
 class LinearActuator(object):
@@ -117,6 +123,7 @@ class LinearActuator(object):
                 self.status=0 # switch off
 
 
+
 class SlocumShallow100Hardware(object):
     def __init__(self):
         self.buoyancypump=LinearActuator(initial_position=200.,
@@ -132,6 +139,8 @@ class SlocumShallow100Hardware(object):
         self.finmotor=LinearActuator(0.,0.02,0.45,-0.45,0.035)
         self.finPID=PID(Kp=0.8,Ki=0.001,Kd=0)
         self.pitchPID=PID(Kp=0.4,Ki=0.0,Kd=0.0)
+
+
 
 class SlocumDeepHardware(object):
     def __init__(self):
@@ -150,6 +159,7 @@ class SlocumDeepHardware(object):
         self.pitchPID=PID(Kp=0.4,Ki=0.001,Kd=0.0)
 
 
+
 class SlocumDeepExtendedHardware(object):
     def __init__(self):
         self.buoyancypump=LinearActuator(initial_position=200.,
@@ -166,7 +176,7 @@ class SlocumDeepExtendedHardware(object):
         self.finPID=PID(Kp=0.8,Ki=0.001,Kd=0)
         self.pitchPID=PID(Kp=0.4,Ki=0.001,Kd=0.0)
 
-        
+       
 
 class BaseGliderModel(object):
     def __init__(self):
@@ -203,9 +213,9 @@ class BaseGliderModel(object):
         gs['samedepth_for']=0
         if datestr:
             if timestr:
-                gs['m_present_time']=strptimeToEpoch(datestr+timestr,"%Y%m%d%H:%M")
+                gs['m_present_time'] = arrow.get(" ".join([datestr, timestr]), "YYYYMMDD HH:mm").timestamp
             else:
-                gs['m_present_time']=strptimeToEpoch(datestr,"%Y%m%d")
+                gs['m_present_time'] = arrow.get(datestr, "YYYYMMDD").timestamp
         else:
             gs['m_present_time']=0.
         gs['stack']=1 # number of commands given.
@@ -470,8 +480,7 @@ class FinModel(object):
 
         return m_heading_rate
     
-
-    
+   
     
 class GliderFlightModel(gliderflight.DynamicGliderModel):
     ''' Flight model based on glider flight.

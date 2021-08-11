@@ -1,17 +1,15 @@
-try:
-    from .fsm import FSM
-except ImportError:
-    from glidersim.fsm import FSM
-import latlon
 from math import sqrt,pi,sin,cos
-import timeconversion
 from functools import reduce
 from collections import UserList, OrderedDict
 
-import logging
+import arrow
 
-logger = logging.getLogger("behaviors")
-logger.setLevel(logging.INFO)
+import latlon
+
+from .fsm import FSM
+from . import common
+
+logger = common.get_logger("behaviors")
 
 INPROGRESS=1
 TOQUIT=2
@@ -170,14 +168,14 @@ class UTC_Condition(object):
 
     def check(self,gs):
         t=gs['m_present_time']
-        dt=timeconversion.datetime.utcfromtimestamp(t)
+        dt=arrow.get(t).datetime
         year = dt.year
         month = self.__set(self.month,dt.month)
         day = self.__set(self.day,dt.day)
         hour = self.__set(self.hour,dt.hour)
         minute = self.__set(self.min,dt.minute)
-        s="%d%02d%02d%02d%02d"%(year,month,day,hour,minute)
-        tc=timeconversion.strptimeToEpoch(s,"%Y%m%d%H%M")
+        s="%d%02d%02d %02d%02d"%(year,month,day,hour,minute)
+        tc = arrow.get(s, "YYYYMMDD HH:mm").timestamp
         if t>=tc and t<=tc+60.:
             return True
         else:

@@ -1,13 +1,17 @@
 import math
-from latlonUTM import UTM2latlon
-from latlon import convertToNmea, convertToDecimal
-from . import getm
 import glob
+import random
+
 import numpy as np
 from scipy.interpolate import interp2d, interp1d
-from .timeconversion import strptimeToEpoch
 
-import random
+from latlonUTM import UTM2latlon
+from latlon import convertToNmea, convertToDecimal
+
+from . import getm
+
+
+
 
 class TimeseriesEnvironment(object):
     BATHYMETRY=None

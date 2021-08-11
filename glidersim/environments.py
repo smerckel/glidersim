@@ -1,20 +1,45 @@
-import datetime
 import json
 from urllib import request
 import os
-import logging
+import sys
 
+import arrow
 import numpy as np
 import netCDF4
 from scipy.interpolate import interp1d, RegularGridInterpolator
 
 import dbdreader
 import latlonUTM
-import timeconversion
-import fast_gsw
+try:
+    import FAST_gsw
+except ImportError:
+    import gsw
+    class fast_gsw(object):
+        @classmethod
+        def rho(cls, C, T, P, lon, lat):
+            return cls._rho(C, T, P, lon, lat)
 
-logger = logging.getLogger(name="environments")
-logger.setLevel(logging.INFO)
+        @classmethod
+        def SA(cls, C, T, P, lon, lat):
+            return cls._SA(C, T, P, lon, lat)
+
+        @classmethod
+        def _SA(cls, C, T, P, lon, lat):
+            SP = gsw.SP_from_C(C, T, P)
+            SA = gsw.SA_from_SP(SP, P, lon, lat)
+            return SA
+
+        @classmethod
+        def _rho(cls, C,T,P, lon, lat):
+            SA = cls._SA(C, T, P, lon, lat)
+            CT = gsw.CT_from_t(SA, T, P)
+            rho =gsw.rho(SA, CT, P)
+            return rho
+
+    
+from . import common
+
+logger = common.get_logger(name="environments")
 
 class GliderData(object):
     ''' Class to compute environmental data based on glider data.
@@ -59,11 +84,11 @@ class GliderData(object):
         dataset.close()
         self.bathymetry_fun = RegularGridInterpolator((lat, lon), bathymetry)
 
-    def read_gliderdata(self, lat, lon):
+    def read_gliderdata(self,tm, lat, lon):
         path = os.path.join(self.gliders_directory, self.glider_name, 'from-glider', '%s*.[st]bd'%(self.glider_name))
         dbd = dbdreader.MultiDBD(pattern=path, cacheDir=self.DBDREADER_CACHEDIR)
         if self.glider_name == 'sim':
-            print("Warning: assuming simulator. I am making up CTD data!")
+            logger.warning("Warning: assuming simulator. I am making up CTD data!")
             t, P = dbd.get("m_depth")
             P/=10
             C = np.ones_like(P)*4
@@ -72,9 +97,9 @@ class GliderData(object):
             v = u.copy()
         else:
             tmp = dbd.get_sync(*"sci_water_cond sci_water_temp sci_water_pressure".split())
-            t_last = tmp[0][-1]
-            age = t_last - tmp[0]
-            t, C, T, P = np.compress(np.logical_and(tmp[1]>0, age<self.AGE*3600), tmp, axis=1)
+            age = tm - tmp[0]
+            age_condition = np.logical_and(age>=0, age<self.AGE*3600)
+            t, C, T, P = np.compress(np.logical_and(tmp[1]>0, age_condition), tmp, axis=1)
             try:
                 _, u, v = dbd.get_sync("m_water_vx", "m_water_vy")
             except dbdreader.DbdError:
@@ -88,7 +113,7 @@ class GliderData(object):
         rho = fast_gsw.rho(C*10, T, P*10, lon, lat)
         SA = fast_gsw.SA(C*10, T, P*10, lon, lat)
         # compute the age of each measurement, and the resulting weight.
-        dt = t.max() - t
+        dt = tm - t
         weights = np.exp(-dt/(self.AGE*3600))
         # make binned averages
         max_depth = P.max()*10
@@ -120,6 +145,7 @@ class GliderData(object):
         self.T_fun = interp1d(zj, T_avg, bounds_error = False, fill_value=(T_avg[0], T_avg[-1]))
 
         if self.u_fun is None: # not intialised yet, use last water current estimate available.
+            logger.info("Setting water velocities with constant value equal to water_v{x,y}")
             self.u_fun = lambda x : u[-1]
             self.v_fun = lambda x : v[-1]
         
@@ -146,7 +172,7 @@ class GliderData(object):
         if self.bathymetry_fun is None:
             self.initialise_velocity_data(t, lat, lon)
             self.read_bathymetry()
-            self.read_gliderdata(lat, lon)
+            self.read_gliderdata(t, lat, lon)
         try:
             u = float(self.u_fun(t))
             v = float(self.v_fun(t))
@@ -162,7 +188,7 @@ class GliderData(object):
             water_depth = 200
         if water_depth < 0:
             logger.error(f"Waterdepth found to be negative ({water_depth}). It could be that the bathymetry is\n\tgiven with the opposite sign as expected.\n\tTry to reverse sign of glidersim.environts.NC_ELEVATION_FACTOR")
-        
+            sys.exit()
         eta = 0
         # z is given as negative, but fitted against depth...
         S = float(self.SA_fun(-z))
@@ -183,7 +209,7 @@ class DriftModel(GliderData):
     Bathymetry data are from a netcdf file.
     '''
     
-    DATE_FORMAT_STR = "%d.%m.%Y %H:%M"
+    DATE_FORMAT_STR = "DD.MM.YYYY hh:mm"
     INTERPOLATION_METHOD = 'quadratic' # or 'linear'
     
     def __init__(self, glider_name, download_time=12, gliders_directory=None, bathymetry_filename=None):
@@ -192,7 +218,7 @@ class DriftModel(GliderData):
         
     def download_drift_data(self, t, lat, lon):
         logger.info("Requesting current info from DrfitApp-server...")
-        dt = datetime.datetime.utcfromtimestamp(t)
+        dt = arrow.get(t).datetime
         tstr = "{:4d}_{:02d}_{:02d}_{:02d}_{:02d}".format(dt.year,
                                                           dt.month,
                                                           dt.day,
@@ -219,7 +245,7 @@ class DriftModel(GliderData):
         t = []
         zone = None
         for _lon, _lat, *_, tstr in json_data['Forward_output']:
-            _t = timeconversion.strptimeToEpoch(tstr, self.DATE_FORMAT_STR)
+            _t = arrow.get(tstr, self.DATE_FORMAT_STR).timestamp
             t.append(_t)
             (_x, _y), _zone, _ = latlonUTM.latlon2UTM(_lat, _lon)
             if zone is None:

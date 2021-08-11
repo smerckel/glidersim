@@ -1,6 +1,7 @@
 import re
-from . import behaviors
 import os
+
+from . import behaviors
 
 ImplementedBehaviors={'abend':behaviors.Abend,
                       'yo':behaviors.Yo,

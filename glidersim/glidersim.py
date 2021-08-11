@@ -1,16 +1,16 @@
 from math import atan2, pi,sqrt
 import numpy as np
 import os
-import logging
 
-from . import glidermodels
 from . import behaviors
-from . import parser
+from . import common
 from . import datastore
+from . import glidermodels
+from . import parser
+
 from .glidermodels import GliderException
 
-logger = logging.getLogger(name='glidersim')
-logger.setLevel(logging.INFO)
+logger = common.get_logger(name='glidersim')
 
 MISSIONS = 'missions'
 MAFILES = 'mafiles'
@@ -28,6 +28,8 @@ class Actuator(object):
             return 1
         else:
             return 0
+
+
 
 class Controls(object):
     def __init__(self):
@@ -171,8 +173,6 @@ class LayeredControl(object):
                 raise ValueError("unknown fin control")
             gs['c_fin']=c_fin
         return c_battpos,c_ballast_pumped,c_fin
-
-
 
 
             

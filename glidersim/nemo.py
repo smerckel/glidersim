@@ -1,9 +1,11 @@
 import glob
-from .timeconversion import strptimeToEpoch
+
 import numpy as np
 from scipy.interpolate import interp1d, interp2d
-from . import getm_nc
+
 from latlon import convertToDecimal
+
+from . import getm_nc
 from . import geometry
 
 class Cache(object):
@@ -111,7 +113,7 @@ class NemoEnvironment(object):
         s=self.directory+'/'+self.basename
         d=[i.replace(s,"") for i in fns]
         d=[i.replace(self.suffix,"") for i in d]
-        ts=[strptimeToEpoch(x,"%Y%m%d") for x in d]
+        ts=[arrow.get(x, "YYYYMMDD").timestamp for x in d]
         return ts
 
 #

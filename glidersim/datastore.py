@@ -1,10 +1,10 @@
 import os
-
-import numpy as np
-from latlon import convertToDecimal
 import pickle
 
-from HZGnetCDF import ncHereon
+import numpy as np
+
+from latlon import convertToDecimal
+from GliderNetCDF import ncHereon
 
 class Data(object):
     def __init__(self,gs={},period=10):

@@ -1,14 +1,17 @@
-import math
-from latlonUTM import UTM2latlon
-from latlon import convertToNmea, convertToDecimal
-from . import getm_nc
 import glob
+import math
+import os
+import random
+
+import arrow
 import numpy as np
 from scipy.interpolate import interp2d
-from .timeconversion import strptimeToEpoch
-import os
 
-import random
+from latlonUTM import UTM2latlon
+from latlon import convertToNmea, convertToDecimal
+
+from . import getm_nc
+
 
 class Bathymetry(object):
     NCBATHYMETRY='/home/lucas/getm_data/kofserver2/bathymetry.nc'
@@ -175,7 +178,7 @@ class GetmEnvironment(object):
         s=self.directory+'/'+self.basename
         d=[i.replace(s,"") for i in fns]
         d=[i.replace(self.suffix,"") for i in d]
-        ts=[strptimeToEpoch(x,"%Y%m%d") for x in d]
+        ts=[arrow.get(x, "YYYYMMDD").timestamp for x in d]
         return ts
 
     def __mapU(self,x):
@@ -447,7 +450,7 @@ class GetmEnvironment2D(object):
         s=self.directory+'/'+self.basename
         d=[i.replace(s,"") for i in fns]
         d=[i.replace(self.suffix,"") for i in d]
-        ts=[strptimeToEpoch(x,"%Y%m%d") for x in d]
+        ts=[arrow.get(x, "YYYYMMDD").timestamp for x in d]
         return ts
 
     def __mapU(self,x):
@@ -616,13 +619,4 @@ class GetmEnvironment2DInterpolated(GetmEnvironment2D):
         self.__grid_ij=dict((k,[0,0]) for k in list(self.grids.keys()))
 
 
-#########################################
 
-if __name__=="__main__":
-    GetmEnvironment2D.Uname="surface_eastward_sea_water_velocity"
-    GetmEnvironment2D.Vname="surface_northward_sea_water_velocity"
-    G=GetmEnvironment2D(directory="/home/lucas/samba/cosyna/netcdf/PO-Flow/gb_1km",
-                        basename="getm2d_",
-                        suffix=".nc")
-    t=strptimeToEpoch("5 Jul 2013 12:00","%d %b %Y %H:%M")
-    
