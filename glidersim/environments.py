@@ -40,6 +40,12 @@ class GliderData(object):
         self.gliders_directory = gliders_directory or GliderData.GLIDERS_DIRECTORY
         self.bathymetry_filename = bathymetry_filename or GliderData.BATHYMETRY_FILENAME
         self._print_warnings = True
+
+    def reset(self):
+        '''
+        Causes a reload of data
+        '''
+        self.bathymetry_fun = None
         
     def read_bathymetry(self):
         ''' Read bathymetry from a netcdf file

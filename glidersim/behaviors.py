@@ -598,6 +598,8 @@ class Surface(WhenBehavior):
             if self.gliderState['m_gps_status']==0: # good fix:
                 self.gliderState['x_gps_lmc_x_dive']=self.gliderState['m_lmc_x']
                 self.gliderState['x_gps_lmc_y_dive']=self.gliderState['m_lmc_y']
+                self.gliderState['x_lmc_x_wpt_calc']=self.gliderState['m_lmc_x']
+                self.gliderState['x_lmc_y_wpt_calc']=self.gliderState['m_lmc_y']
                 self.gliderState['x_time_dive']=self.gliderState['m_present_time']
             self.b_arg['resume'].set_True()
             # This seems not to make much sense really...
@@ -646,7 +648,7 @@ class Dive_to(DiveClimbBehavior):
         # condition when to stop
         self.b_arg['stop_when'].addCondition('m_depth','>',self.target_depth,(0,None))
         CLRS.r(self.behaviorName+": "+self.fsm.current_state)
-        CLRS.b("target_depth %f"%(self.target_depth))
+        #CLRS.b("target_depth %f"%(self.target_depth))
         
 class Climb_to(DiveClimbBehavior):
     def __init__(self,
@@ -1030,11 +1032,13 @@ class Goto_list(WhenBehavior):
         dist=sqrt((x0-x1)**2+(y0-y1)**2)
         self.gliderState['m_dist_to_wpt']=dist
         CLRS.w("distance to waypoint: %f"%(dist))
-        print("distance to waypoint: %f %f %f"%(dist, self.list_when_wpt_dist, self.list_stop_when))
+        #print(dist, self.gliderState['c_heading'], self.gliderState['c_wpt_lat'], self.gliderState['c_wpt_lon'])
         if self.list_stop_when==7 and dist<=self.list_when_wpt_dist:
             self.achievedWaypoints+=1
             self.gliderState['x_last_wpt_lat']=self.waypoints[r][1]
             self.gliderState['x_last_wpt_lon']=self.waypoints[r][0]
+            self.gliderState['x_lmc_x_wpt_calc']=self.gliderState['m_lmc_x']
+            self.gliderState['x_lmc_y_wpt_calc']=self.gliderState['m_lmc_y']
             if self.num_legs_to_run==self.achievedWaypoints:
                 self.b_arg['stop_when'].set_True()
             elif self.num_legs_to_run==-2 and self.achievedWaypoints==self.num_waypoints:
@@ -1163,7 +1167,7 @@ class Prepare_to_dive(WhenBehavior):
         self.fsm.add_transition_any('Complete',action=None,next_state=None)
         self.fsm.add_transition_any('UnInited',action=None,next_state=None)
         CLRS.r(self.behaviorName+": "+self.fsm.current_state)
-
+        
     def Active(self,fsm):
         CLRS.r(self.behaviorName+": "+fsm.current_state+"->"+fsm.next_state)
         # switch on gps
@@ -1171,7 +1175,7 @@ class Prepare_to_dive(WhenBehavior):
         self.t0=self.gliderState['m_present_time']
         # we should block all behaviours that start on an empty stack behavior.
         self.gliderState['keep_stack_busy']=1
-
+        
     def collectGPS(self,fsm):
         if self.gliderState['m_present_time']-self.t0>=self.wait_time:
             self.b_arg['stop_when'].set_True()
@@ -1181,14 +1185,15 @@ class Prepare_to_dive(WhenBehavior):
         self.gliderState['hover_for']=0.
         self.gliderState['stalled_for']=0.
         self.gliderState['samedepth_for']=0.
-
+        
     def Complete(self,fsm):
         # set gps position at dive and relief stack
         self.gliderState['keep_stack_busy']=0
         self.gliderState['x_gps_lmc_x_dive']=self.gliderState['m_lmc_x']
         self.gliderState['x_gps_lmc_y_dive']=self.gliderState['m_lmc_y']
+        self.gliderState['x_lmc_x_wpt_calc']=self.gliderState['m_lmc_x']
+        self.gliderState['x_lmc_y_wpt_calc']=self.gliderState['m_lmc_y']
         self.gliderState['x_time_dive']=self.gliderState['m_present_time']
-
 
 # These behaviours do actually nothing, but allow for mission files to be parsed etc.
 

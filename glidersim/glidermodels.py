@@ -353,11 +353,6 @@ class SlocumDeepExtendedHardware(object):
 class BaseGliderModel(object):
     def __init__(self):
         self.gps=GPS()
-        self.lmc_x = 0
-        self.lmc_y = 0
-        self.lmc_z = 0
-
-        self.x = self.y = self.z = 0 # real coordinates
         self.gliderflight_model =  GliderFlightModel()
 
         # Glider Hardware, to be subclassed.
@@ -379,6 +374,11 @@ class BaseGliderModel(object):
         
                 
     def initialise_gliderstate(self,datestr,timestr,lat,lon, mission_start):
+        self.lmc_x = 0
+        self.lmc_y = 0
+        self.lmc_z = 0
+        self.x = self.y = self.z = 0 # real coordinates
+
         gs={}
         gs['m_depth']=0
         gs['m_present_secs_into_mission']=0.
@@ -470,8 +470,10 @@ class BaseGliderModel(object):
                             # mimicking the continuation of the the
                             # mission. This affects the behavior
                             # goto_l
-        gs['m_mission_start_time']=gs['m_present_time']
-        gs['m_pressure']=0
+        gs['m_mission_start_time'] = gs['m_present_time']
+        gs['m_pressure'] = 0
+        gs['x_lmc_x_wpt_calc'] = 0 # stores start point of transect, used to calculate heading from waypoints.
+        gs['x_lmc_y_wpt_calc'] = 0
         self.gs=gs
 
 
@@ -534,6 +536,8 @@ class BaseGliderModel(object):
         self.gs['x_w']=w
         self.gs['x_water_depth']=water_depth+eta
 
+        # for the CTD, we have only temperature. We would need to back-calculate C
+        
         # compute heading and heading_rate from fin position, and pitch:
 
         p = [self.gs[i] for i in 'm_present_time m_heading m_heading_rate m_fin m_speed'.split()]
@@ -585,6 +589,9 @@ class BaseGliderModel(object):
         else:
             self.lmc_x += dt * self.gs['x_northward_glider_velocity']
             self.lmc_y += dt * self.gs['x_eastward_glider_velocity']
+        if self.gs['u_use_current_correction']:
+            self.lmc_x += dt * self.gs['m_water_vx']
+            self.lmc_y += dt * self.gs['m_water_vy']
             
         self.gs['m_lmc_x']=self.lmc_x
         self.gs['m_lmc_y']=self.lmc_y

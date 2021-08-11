@@ -114,6 +114,8 @@ class MissionParser(object):
         self.sensor_settings=[]
         self.verbose=verbose
         self.mafiles=[]
+        verbose=True
+        behaviors.VERBOSE = verbose
         
     def parse(self, mission, mafile_directory, raise_error_on_missing_mafiles=True):
         with open(mission, 'r') as fp:
@@ -147,17 +149,6 @@ class MissionParser(object):
             self.behaviors.append(b)
         elif self.verbose:
             print("Ignoring %s, as it is not implemented."%(behaviorName))
-
-    def add_waypoint(self,i):
-        # this is a non-slocum specific method. It allows for waypoints to be 
-        # put in mission files in the format used in the ma files. This is only
-        # of use if a seaglider mission is simulated.
-        if not self.currentBehaviorName in list(ImplementedBehaviors.keys()) or\
-                self.currentBehaviorName!='goto_list':
-            raise ValueError('Trying to read a waypoint datum, but I am not processing a goto_l behavior.')
-        lon,lat=[float(k) for k in i.split()]
-        behavior=self.behaviors[-1]
-        behavior.waypoints.append((lon,lat))
 
     def addb_arg(self,i, mafile_directory, raise_error_on_missing_mafiles):
         if self.currentBehaviorName in list(ImplementedBehaviors.keys()):

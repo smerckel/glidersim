@@ -102,19 +102,20 @@ class LayeredControl(object):
         # clips if too large.
         return x_fin
             
-    def resolveWpt(self,c_wpt,m_lmc_x,m_lmc_y,
-                   use_current_correction,m_speed,vx,vy):
-        dy=c_wpt[1]-m_lmc_y
-        dx=c_wpt[0]-m_lmc_x
+    def resolveWpt(self,c_wpt,lmc_x,lmc_y,
+                   use_current_correction,gl_vx, gl_vy ,vx,vy):
+        dy=c_wpt[1]-lmc_y
+        dx=c_wpt[0]-lmc_x
         if use_current_correction and vx and vy:
             distanceToWaypoint=sqrt(dx**2+dy**2)
-            timeToWaypoint=distanceToWaypoint/max(0.1,m_speed)
-            cdx=timeToWaypoint*vx
-            cdy=timeToWaypoint*vy
+            sog = sqrt((vx+gl_vx)**2 + (vy+gl_vy)**2)
+            timeToWaypoint=distanceToWaypoint/max(0.1,sog)
+            cdx=-timeToWaypoint*vx
+            cdy=-timeToWaypoint*vy
         else:
             cdx=0
             cdy=0
-        phi=atan2(dy-cdy,dx-cdx)
+        phi=atan2(dy+cdy,dx+cdx)
         c_heading=-phi+pi/2.
         return c_heading%(2.*pi)
         
@@ -156,9 +157,12 @@ class LayeredControl(object):
             elif cmd[0]=='c_heading':
                 c_fin=self.resolveHeading(cmd[1],gs['m_heading'],t)
             elif cmd[0]=='c_wpt_latlon':
-                c_heading=self.resolveWpt(cmd[1],gs['m_lmc_x'],gs['m_lmc_y'],
+                c_heading=self.resolveWpt(cmd[1],
+                                          gs['x_lmc_x_wpt_calc'],
+                                          gs['x_lmc_y_wpt_calc'],
                                           gs['u_use_current_correction'],
-                                          gs['m_speed'],
+                                          gs['x_eastward_glider_velocity'],
+                                          gs['x_northward_glider_velocity'],
                                           gs['m_water_vx'],
                                           gs['m_water_vy'])
                 gs['c_heading']=c_heading
@@ -173,7 +177,7 @@ class LayeredControl(object):
 
             
 class GliderMission(datastore.Data):
-    def __init__(self,config,glider_model=None,environment_model=None, interactive=True, verbose=True):
+    def __init__(self,config,glider_model=None,environment_model=None, interactive=False, verbose=True):
         if interactive:
             config.checkOutputFilename()
         if glider_model is None:
@@ -285,7 +289,7 @@ class GliderMission(datastore.Data):
         self.data = dict([(k,np.array(v, dtype=object)) for k,v in self.data.items()])
 
     def run(self,dt=1,CPUcycle=4,maxSimulationTime=None,
-            end_on_surfacing=0):
+            end_on_surfacing=0, verbose=False):
         ''' dt : time step in seconds
             CPUcycle: time step per CPU cycle.
             maxSimulationTime: maximum simulation time in days
@@ -298,6 +302,7 @@ class GliderMission(datastore.Data):
         self.glider.gliderflight_model.dt = dt
         
         behaviors.VERBOSE = self.verbose
+        self.verbose = verbose
         behaviors.Behavior.MS=0
         # surface conditions:
         self.glider.gs['c_ballast_pumped']=self.glider.buoyancypump.set_commanded(1000)        
@@ -373,7 +378,8 @@ class GliderMission(datastore.Data):
         self._npfy_data()
 
     def printInfo(self):
-        gs = self.gs
-        s = f"MT: {gs['m_present_secs_into_mission']}; depth:{gs['m_depth']:5.1f} m; buoyancy:{gs['m_ballast_pumped']:+5.0f} cc; "
-        s += f" lat:{gs['x_lat']:+6.2f}; lon:{gs['x_lon']:+6.2f}; waterdepth:{gs['water_depth']:5.1f}" 
-        logger.info(s)
+        if self.verbose:
+            gs = self.gs
+            s = f"MT: {gs['m_present_secs_into_mission']}; depth:{gs['m_depth']:5.1f} m; buoyancy:{gs['m_ballast_pumped']:+5.0f} cc; "
+            s += f" lat:{gs['x_lat']:+6.2f}; lon:{gs['x_lon']:+6.2f}; waterdepth:{gs['water_depth']:5.1f}" 
+            logger.info(s)
