@@ -113,4 +113,9 @@ bx[0,0].set_aspect(1)
 bx[0,1].set_xlabel('lon (deg)')
 bx[0,1].set_ylabel('lat (deg)')
 
+for _ax in ax.ravel():
+    _ax.legend()
+for _ax in bx.ravel():
+    _ax.legend()
+    
 #plt.show()
