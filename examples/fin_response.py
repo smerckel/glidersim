@@ -46,9 +46,9 @@ for i, _omega in enumerate(m_hdg_rate):
     if i==0:
         continue
     else:
-        omega_p[i] = (A*F[i]/tau - 1/tau * omega_p[i-1])*dt[i-1] + omega_p[i-1]
-        #omega_p[i] = A*F[i]/tau*dt[i-1] + omega_p[i-1]*(1-dt[i-1]/2/tau)
-        #omega_p[i] /= 1+dt[i-1]/2/tau
+        #omega_p[i] = (A*F[i]/tau - 1/tau * omega_p[i-1])*dt[i-1] + omega_p[i-1]
+        omega_p[i] = A*F[i]/tau*dt[i-1] + omega_p[i-1]*(1-dt[i-1]/2/tau)
+        omega_p[i] /= 1+dt[i-1]/2/tau
 plt.plot(t, omega, label='measured')
 plt.plot(t, omega_p, label='modelled')
 #plt.xlim(1406618498, 1406621504)
