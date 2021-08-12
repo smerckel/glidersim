@@ -2,9 +2,10 @@ import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.dates import epoch2num, DateFormatter
 import dbdreader
-from HZGnetCDF import ncHereon
+from GliderNetCDF import ncHereon
 import latlon
 
+# The gs_example script produces two output files. Choose one of them to analyse.
 if 0:
     dbd_pattern = "../data/comet/from-glider/come*034.dbd"
     ncfilename = "comet-nsb3-spiral.nc"
