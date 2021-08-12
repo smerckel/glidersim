@@ -10,4 +10,4 @@ __all__=['glidersim',
          'parser.py']
 
 from . import glidersim
-
+from ._version import __version__
