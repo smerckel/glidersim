@@ -213,9 +213,9 @@ class BaseGliderModel(object):
         gs['samedepth_for']=0
         if datestr:
             if timestr:
-                gs['m_present_time'] = arrow.get(" ".join([datestr, timestr]), "YYYYMMDD HH:mm").timestamp
+                gs['m_present_time'] = arrow.get(" ".join([datestr, timestr]), "YYYYMMDD HH:mm").timestamp()
             else:
-                gs['m_present_time'] = arrow.get(datestr, "YYYYMMDD").timestamp
+                gs['m_present_time'] = arrow.get(datestr, "YYYYMMDD").timestamp()
         else:
             gs['m_present_time']=0.
         gs['stack']=1 # number of commands given.

@@ -245,7 +245,7 @@ class DriftModel(GliderData):
         t = []
         zone = None
         for _lon, _lat, *_, tstr in json_data['Forward_output']:
-            _t = arrow.get(tstr, self.DATE_FORMAT_STR).timestamp
+            _t = arrow.get(tstr, self.DATE_FORMAT_STR).timestamp()
             t.append(_t)
             (_x, _y), _zone, _ = latlonUTM.latlon2UTM(_lat, _lon)
             if zone is None:

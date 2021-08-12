@@ -113,7 +113,7 @@ class NemoEnvironment(object):
         s=self.directory+'/'+self.basename
         d=[i.replace(s,"") for i in fns]
         d=[i.replace(self.suffix,"") for i in d]
-        ts=[arrow.get(x, "YYYYMMDD").timestamp for x in d]
+        ts=[arrow.get(x, "YYYYMMDD").timestamp() for x in d]
         return ts
 
 #

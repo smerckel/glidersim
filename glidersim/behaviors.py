@@ -175,7 +175,7 @@ class UTC_Condition(object):
         hour = self.__set(self.hour,dt.hour)
         minute = self.__set(self.min,dt.minute)
         s="%d%02d%02d %02d%02d"%(year,month,day,hour,minute)
-        tc = arrow.get(s, "YYYYMMDD HH:mm").timestamp
+        tc = arrow.get(s, "YYYYMMDD HH:mm").timestamp()
         if t>=tc and t<=tc+60.:
             return True
         else:
