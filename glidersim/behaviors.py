@@ -374,6 +374,8 @@ class UpDownSettings(object):
                  use_bpump,bpump_value,
                  use_pitch,pitch_value):
         self.use_bpump=use_bpump
+        if use_bpump!=2:
+            raise ValueError()
         self.bpump_value=bpump_value
         self.use_pitch=use_pitch
         self.pitch_value=pitch_value
@@ -1071,14 +1073,14 @@ class Goto_list(WhenBehavior):
         last_wpt_lat=self.gliderState['x_last_wpt_lat']
         last_wpt_lon=self.gliderState['x_last_wpt_lon']
         found=-1
-        CLRS.b("last achieved lat/lon",last_wpt_lat,last_wpt_lon)
+        CLRS.b(f"last achieved lat/lon {last_wpt_lat}/{last_wpt_lon}")
         CLRS.b("Waypoint list:")
         for i,(lon,lat) in enumerate(self.waypoints):
-            CLRS.b(i,lat,lon)
+            CLRS.b(f"{i}: {lat}, {lon}")
         for i,(lon,lat) in enumerate(self.waypoints):
             if abs(lon-last_wpt_lon)<1e-4 and abs(lat-last_wpt_lat)<1e-4:
                 found=i
-                CLRS.b("Waypoint found:", "(%d)"%(i),lat,lon)
+                CLRS.b(f"Waypoint found: {i}, {lat}, {lon}")
                 break
         if found!=-1:
             # last achieved waypoint in the list

@@ -211,7 +211,15 @@ class GliderMission(datastore.Data):
         config.set_sensors(self)
         config.set_special_settings(self)
         datastore.Data.__init__(self,self.glider.gs,period=config.storePeriod)
-
+        self._set_glider_settings_from_special_settings(config)
+        
+    def _set_glider_settings_from_special_settings(self, config):
+        # configured special_settings
+        sp_settings = dict(initial_heading='m_heading')
+        for s,v in sp_settings.items():
+            self.glider.gs[v] = config.special_settings[s]
+            logger.info(f"Initial setting of {v}...")
+            
     def loadlongterm(self,longterm_filename=None):
         if longterm_filename!=None:
             if os.path.exists(longterm_filename):
@@ -284,12 +292,16 @@ class GliderMission(datastore.Data):
                 r=True
                 break
         return r
+
+    def check_if_grounded(self):
+        return self.glider.gs['_is_grounded']
     
     def _npfy_data(self):
-        self.data = dict([(k,np.array(v, dtype=object)) for k,v in self.data.items()])
+        object_types = dict([(k, type(v[0])) for k, v in self.data.items()]) # set the type equal to the first element for each element in data.
+        self.data = dict([(k,np.array(v, dtype=object_types[k])) for k,v in self.data.items()])
 
     def run(self,dt=1,CPUcycle=4,maxSimulationTime=None,
-            end_on_surfacing=0, verbose=False):
+            end_on_surfacing=False, end_on_grounding=False, verbose=False):
         ''' dt : time step in seconds
             CPUcycle: time step per CPU cycle.
             maxSimulationTime: maximum simulation time in days
@@ -297,6 +309,9 @@ class GliderMission(datastore.Data):
             end_on_surfacing n>0:
             Stops simulation when glider surfaces via a surfacing 
             behavior for nth time.
+
+            end_on_grounding True:
+            Stops simulation when the glider hits the bottom.
         '''
         # make sure that the glider flight model is run with the same time step as the hardware is updated.
         self.glider.gliderflight_model.dt = dt
@@ -362,7 +377,16 @@ class GliderMission(datastore.Data):
                         break
                     else:
                         logger.info(s+"Continuing")
-
+            if end_on_grounding:
+                if self.check_if_grounded():
+                    s = "Glider hit the bottom... "
+                    end_on_grounding -= 1
+                    if end_on_grounding == 0:
+                        logger.info(s+"Ending mission because of end_on_grounding is set.")
+                        self.add_data(force_data_write=True)
+                        break
+                    else:
+                        logger.info(s+"Continuing")
             self.glider.update(simulationTime,dt)
             self.add_data()
             simulationTime+=dt

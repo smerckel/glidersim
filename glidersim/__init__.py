@@ -1,4 +1,5 @@
 __all__=['glidersim',
+         'environments',
          'behaviors',
          'configuration.py',
          'datastore.py',

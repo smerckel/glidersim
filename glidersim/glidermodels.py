@@ -213,9 +213,9 @@ class BaseGliderModel(object):
         gs['samedepth_for']=0
         if datestr:
             if timestr:
-                gs['m_present_time'] = arrow.get(" ".join([datestr, timestr]), "YYYYMMDD HH:mm").timestamp()
+                gs['m_present_time'] = arrow.get(" ".join([datestr, timestr]), "YYYYMMDD HH:mm").timestamp
             else:
-                gs['m_present_time'] = arrow.get(datestr, "YYYYMMDD").timestamp()
+                gs['m_present_time'] = arrow.get(datestr, "YYYYMMDD").timestamp
         else:
             gs['m_present_time']=0.
         gs['stack']=1 # number of commands given.
@@ -302,6 +302,7 @@ class BaseGliderModel(object):
         gs['m_pressure'] = 0
         gs['x_lmc_x_wpt_calc'] = 0 # stores start point of transect, used to calculate heading from waypoints.
         gs['x_lmc_y_wpt_calc'] = 0
+        gs['_is_grounded'] = 0 # checked when needed to stop simulation if glider ran aground. Set in update.
         self.gs=gs
 
 
@@ -391,9 +392,17 @@ class BaseGliderModel(object):
                                                      rho,
                                                      self.gs['m_ballast_pumped'],
                                                      m_heading)
-        self.x, self.y, self.z, self.gs['x_eastward_glider_velocity'],\
-            self.gs['x_northward_glider_velocity'], self.gs['x_upward_glider_velocity'] = tmp
+        _x, _y, _z, _u, _v, _w = tmp
+        # check and set when glider grounded.
+        if _z + water_depth + eta < 0:
+            # grounded.
+            _u = _v = _w = 0
+            self.gs['_is_grounded'] = 1
+        else:
+            self.gs['_is_grounded'] = 0
 
+        self.x, self.y, self.z, self.gs['x_eastward_glider_velocity'],\
+            self.gs['x_northward_glider_velocity'], self.gs['x_upward_glider_velocity'] = _x, _y, _z, _u, _v, _w
         speed = (self.gs['x_eastward_glider_velocity']**2 + self.gs['x_northward_glider_velocity']**2)**0.5
         self.gs['x_speed']=speed
         # use Kalman filter to estiamte running average
