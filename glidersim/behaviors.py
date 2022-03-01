@@ -374,15 +374,13 @@ class UpDownSettings(object):
                  use_bpump,bpump_value,
                  use_pitch,pitch_value):
         self.use_bpump=use_bpump
-        if use_bpump!=2:
-            raise ValueError()
         self.bpump_value=bpump_value
         self.use_pitch=use_pitch
         self.pitch_value=pitch_value
         
     def get_ballast_pumped(self):
-        if self.use_bpump!=2:
-            raise ValueError("Only use_bpump==2 implemented. Sorry.")
+        if self.use_bpump!=2 or self.use_bpump!=3:
+            raise ValueError("Only use_bpump==2/3 implemented. Sorry.")
         return 'c_ballast_pumped',self.bpump_value # irrespective of use_bpump.
 
     def get_pitch(self):
