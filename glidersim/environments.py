@@ -11,9 +11,10 @@ from scipy.interpolate import interp1d, RegularGridInterpolator
 import dbdreader
 import latlonUTM
 try:
-    import FAST_gsw
+    import fast_gsw
 except ImportError:
     import gsw
+    
     class fast_gsw(object):
         @classmethod
         def rho(cls, C, T, P, lon, lat):
@@ -56,7 +57,8 @@ class GliderData(object):
     NC_LON_NAME = 'lon'
     DBDREADER_CACHEDIR = None
     
-    def __init__(self, glider_name, gliders_directory=None, bathymetry_filename=None):
+    def __init__(self, glider_name, gliders_directory=None, bathymetry_filename=None,
+                 glider_is_simulator=False):
         self.u_fun = None
         self.v_fun = None
         self.bathymetry_fun = None
@@ -65,6 +67,7 @@ class GliderData(object):
         self.gliders_directory = gliders_directory or GliderData.GLIDERS_DIRECTORY
         self.bathymetry_filename = bathymetry_filename or GliderData.BATHYMETRY_FILENAME
         self._print_warnings = True
+        self.glider_is_simulator = glider_is_simulator
 
     def reset(self):
         '''
@@ -87,7 +90,7 @@ class GliderData(object):
     def read_gliderdata(self,tm, lat, lon):
         path = os.path.join(self.gliders_directory, self.glider_name, 'from-glider', '%s*.[st]bd'%(self.glider_name))
         dbd = dbdreader.MultiDBD(pattern=path, cacheDir=self.DBDREADER_CACHEDIR)
-        if self.glider_name == 'sim':
+        if self.glider_is_simulator:
             logger.warning("Warning: assuming simulator. I am making up CTD data!")
             t, P = dbd.get("m_depth")
             P/=10

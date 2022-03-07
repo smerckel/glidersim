@@ -140,6 +140,21 @@ class SlocumShallow100Hardware(object):
         self.finPID=PID(Kp=0.8,Ki=0.001,Kd=0)
         self.pitchPID=PID(Kp=0.4,Ki=0.0,Kd=0.0)
 
+class SlocumShallow200ExtendedHardware(object):
+    def __init__(self):
+        self.buoyancypump=LinearActuator(initial_position=200.,
+                                         speed=20.5, # from data 
+                                         position_max=560.,
+                                         position_min=-560.,
+                                         deadbandWidth=20.)
+        self.pitchmotor=LinearActuator(initial_position=0.9,
+                                       speed=0.10, # from data
+                                       position_max=1.65,
+                                       position_min=-1.65,
+                                       deadbandWidth=0.2)
+        self.finmotor=LinearActuator(0.,0.02,0.45,-0.45,0.035)
+        self.finPID=PID(Kp=0.8,Ki=0.001,Kd=0)
+        self.pitchPID=PID(Kp=0.4,Ki=0.0,Kd=0.0)
 
 
 class SlocumDeepHardware(object):
@@ -213,9 +228,9 @@ class BaseGliderModel(object):
         gs['samedepth_for']=0
         if datestr:
             if timestr:
-                gs['m_present_time'] = arrow.get(" ".join([datestr, timestr]), "YYYYMMDD HH:mm").timestamp
+                gs['m_present_time'] = arrow.get(" ".join([datestr, timestr]), "YYYYMMDD HH:mm").timestamp()
             else:
-                gs['m_present_time'] = arrow.get(datestr, "YYYYMMDD").timestamp
+                gs['m_present_time'] = arrow.get(datestr, "YYYYMMDD").timestamp()
         else:
             gs['m_present_time']=0.
         gs['stack']=1 # number of commands given.
@@ -456,20 +471,6 @@ class BaseGliderModel(object):
         self.gs['x_lmc_z']=self.z
         self.gs['x_lat'],self.gs['x_lon']=self.translate_lmc_latlon(self.x,self.y)        
 
-    def calibrate(self,Vdown,Vup,T,S):
-        raise ValueError("Obsolete?")
-        bps=np.arange(-1,1,0.1)
-        pitchDown=[]
-        pitchUp=[]
-        self.gs['temp']=T
-        self.gs['salt']=S
-        for bp in bps:
-            self.set_parameters(Vdown,bp,0,10,4)
-            pitchDown.append(self.m_pitch)
-            self.set_parameters(Vup,bp,0,10,4)
-            pitchUp.append(self.m_pitch)
-        return np.array(pitchDown),np.array(pitchUp)
-
 
     
 class FinModel(object):
@@ -599,6 +600,14 @@ class Shallow100mGliderModel(BaseGliderModel, SlocumShallow100Hardware):
         BaseGliderModel.__init__(self)
         SlocumShallow100Hardware.__init__(self)
 
+class Shallow200mExtendedGliderModel(BaseGliderModel,
+                                     SlocumShallow200ExtendedHardware):
+    def __init__(self):
+        logger.info("Initialising SLOCUM 200 m (ext'ed) glider")
+        BaseGliderModel.__init__(self)
+        SlocumShallow200ExtendedHardware.__init__(self)
+
+        
 class DeepGliderModel(BaseGliderModel,SlocumDeepHardware):
     def __init__(self):
         logger.info("Initialising SLOCUM 1000 m glider")

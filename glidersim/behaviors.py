@@ -197,6 +197,9 @@ class UniqueList(UserList):
 
 class Behavior(object):
     MS=INPROGRESS
+
+    OBSOLETE_KEYWORDS=["num_waypoints"]
+    
     def __init__(self):
         self.b_arg_list=list(self.__dict__.keys())
         self.b_arg_list.remove('behaviorName')
@@ -260,7 +263,9 @@ class Behavior(object):
     def get_parameter_settings(self):
         d = OrderedDict()
         for k in self.b_arg_parameters:
-           d[k] = self.__dict__[k]
+            if k in self.OBSOLETE_KEYWORDS:
+                continue
+            d[k] = self.__dict__[k]
         return d
 
     def get_mafile_name(self):
@@ -379,7 +384,7 @@ class UpDownSettings(object):
         self.pitch_value=pitch_value
         
     def get_ballast_pumped(self):
-        if self.use_bpump!=2 or self.use_bpump!=3:
+        if self.use_bpump!=2 and self.use_bpump!=3:
             raise ValueError("Only use_bpump==2/3 implemented. Sorry.")
         return 'c_ballast_pumped',self.bpump_value # irrespective of use_bpump.
 
@@ -956,20 +961,20 @@ class Goto_list(WhenBehavior):
                  list_when_wpt_dist=10,
                  waypoints=None):
         self.start_when=start_when               
-        self.num_waypoints=num_waypoints            
         self.num_legs_to_run=num_legs_to_run          
         self.initial_wpt=initial_wpt              
         self.list_stop_when=list_stop_when           
         self.list_when_wpt_dist=list_when_wpt_dist       
         if waypoints:
-            self.waypoints=waypoints                
+            self.waypoints=waypoints
+            self.num_waypoints = len(waypoints)
         else:
             self.waypoints=list()
         self.activated_waypoints=[]
         self.behaviorName='Goto_list'
         WhenBehavior.__init__(self,self.start_when,when_secs=None,when_wpt_dist=None) #<---
         self.b_arg_parameters+='num_waypoints num_legs_to_run initial_wpt list_stop_when list_when_wpt_dist waypoints'.split()
-
+        
     def init(self):
         WhenBehavior.init(self)                                                  #needs
                                                                                  #change

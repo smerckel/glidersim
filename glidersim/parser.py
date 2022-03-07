@@ -105,8 +105,7 @@ class MafileParserWpt(MafileParser):
             lat=float(lat)
             i+=1
             self.behavior.waypoints.append((lon,lat))
-        if i != self.behavior.num_waypoints: 
-            raise ValueError('Probably a malformed ma file. Number of waypoints incorrect')
+        self.behavior.num_waypoints = len(self.behavior.waypoints)
 
 class MissionParser(object):
     def __init__(self, verbose=True):
