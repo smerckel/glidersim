@@ -109,7 +109,11 @@ class Condition(object):
         self.check_input()
 
     def check_param(self,gs,parameter,value,valuerange,operator):
-        #print(f"Check param {parameter}, {value}, {valuerange}, {operator} Actual value: {gs[parameter]}", end='')
+        #if parameter == 'time_since_cycle_end':
+        #    print(f"Check param {parameter}, {value}, {valuerange}, {operator} Actual value: {gs[parameter]}", end='')
+        #    print()
+        #    input()
+            
         if parameter not in gs:
             raise ValueError("glider status has not required parameter")
         if (value<=valuerange[1] and value>=valuerange[0]) or \
@@ -300,6 +304,8 @@ class WhenBehavior(Behavior):
             self.b_arg['start_when']=Condition('fin_stack','==',0,(None,None))
         elif self.start_when==4: # bpump idle
             self.b_arg['start_when']=Condition('bpump_stack','==',0,(None,None))
+        elif self.start_when==6: # Time since cycle start
+            self.b_arg['start_when']=Condition('time_since_cycle_end','>',self.when_secs,(0,None))
         elif self.start_when==7: # close to waypoint
             self.b_arg['start_when']=Condition('m_dist_to_wpt','<',self.when_wpt_dist,(0,None))
         elif self.start_when==9: # Time since cycle start
@@ -361,7 +367,7 @@ class DiveClimbBehavior(WhenBehavior):
         CLRS.r(self.behaviorName+": "+fsm.current_state+"->"+fsm.next_state)
         fsm.memory.append(self.diveclimb.get_ballast_pumped())
         fsm.memory.append(self.diveclimb.get_pitch())
-
+        
     def Complete(self,fsm):
         CLRS.r(self.behaviorName+": "+fsm.current_state+"->"+fsm.next_state)
         # when we are here, we can set start_when to True if needed for a next time
@@ -699,11 +705,13 @@ class Set_heading(WhenBehavior):
         self.behaviorName='Set_heading'
         WhenBehavior.__init__(self,self.start_when,self.when_secs,0)
         self.b_arg_parameters+='heading_value use_heading'.split()
-            
+        
     def init(self):
         WhenBehavior.init(self)
         if self.stop_when==0 or self.stop_when==5:
             self.b_arg['stop_when']=Flag(False)
+        elif self.stop_when==6:
+            self.b_arg['stop_when']=Condition('time_since_cycle_end','>',self.when_secs,(0,None))
         else:
             raise ValueError('Value for stop_when not impemented')
 
@@ -725,20 +733,20 @@ class Set_heading(WhenBehavior):
         self.gliderState['m_lmc_x']=0.
         self.gliderState['m_lmc_y']=0.
         self.gliderState['utm_0']=self.position0.UTM()
-
-
-        if self.use_heading==2:
+        if self.use_heading==1:
             fsm.memory.append(('c_heading',self.heading_value))
         elif self.use_heading==4:
             fsm.memory.append(('c_fin',self.heading_value))
         else:
             raise ValueError('Unimplemented value for "use_heading" in "Set_heading" behavior')
+        
     def Complete(self,fsm):
         # dont think we'll ever get here...
         CLRS.r(self.behaviorName+": "+fsm.current_state+"->"+fsm.next_state)
         fsm.memory=[]
         self.b_arg['stop_when']=Flag(True)
-
+        
+        
 class Yo(WhenBehavior):
     def __init__(self,
                  start_when=0,
@@ -1197,6 +1205,8 @@ class Prepare_to_dive(WhenBehavior):
         self.gliderState['x_lmc_x_wpt_calc']=self.gliderState['m_lmc_x']
         self.gliderState['x_lmc_y_wpt_calc']=self.gliderState['m_lmc_y']
         self.gliderState['x_time_dive']=self.gliderState['m_present_time']
+        self.gliderState['time_since_cycle_end']=0 # this is a poor choice, but I don't know where to do this better.
+        
 
 # These behaviours do actually nothing, but allow for mission files to be parsed etc.
 

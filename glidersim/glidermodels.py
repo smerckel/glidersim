@@ -269,6 +269,7 @@ class BaseGliderModel(object):
         gs['c_heading']=0
         gs['nocomms']=0
         gs['time_since_cycle_start']=0
+        gs['time_since_cycle_end']=0
         gs['x_lmc_x']=0
         gs['x_lmc_y']=0
         gs['x_lmc_z']=0
@@ -465,6 +466,7 @@ class BaseGliderModel(object):
         self.gs['m_present_secs_into_mission']+=dt
         self.gs['nocomms']+=dt
         self.gs['time_since_cycle_start']+=dt
+        self.gs['time_since_cycle_end']+=dt
         # store real glider positions too.
         self.gs['x_lmc_x']=self.x
         self.gs['x_lmc_y']=self.y
