@@ -58,7 +58,7 @@ class GliderData(object):
     DBDREADER_CACHEDIR = None
     
     def __init__(self, glider_name, gliders_directory=None, bathymetry_filename=None,
-                 glider_is_simulator=False):
+                 glider_is_simulator=False, ekman_depth=None):
         self.u_fun = None
         self.v_fun = None
         self.bathymetry_fun = None
@@ -68,7 +68,8 @@ class GliderData(object):
         self.bathymetry_filename = bathymetry_filename or GliderData.BATHYMETRY_FILENAME
         self._print_warnings = True
         self.glider_is_simulator = glider_is_simulator
-
+        self.ekman_depth = ekman_depth
+        
     def reset(self):
         '''
         Causes a reload of data
@@ -111,6 +112,17 @@ class GliderData(object):
                 except dbdreader.DbdError:
                     u = np.array([0])
                     v = np.array([0])
+            try:
+                _t, _lat,_lon = dbd.get_sync("m_gps_lat", "m_gps_lon")
+                dt = np.diff(_t)
+                idx = np.where(dt>10*60)[0][-1]+1
+                x , y = latlonUTM.UTM(_lat[idx:], _lon[idx:])
+                us = (np.gradient(x)/np.gradient(_t[idx:])).mean()
+                vs = (np.gradient(y)/np.gradient(_t[idx:])).mean()
+            except:
+                logger.warning("Failed to get surface current estimate. Surface currents set to 0.")
+                us=0
+                vs=0
             u, v = np.compress(np.logical_and(np.abs(u)<1.5, np.abs(v)<1.5), [u, v], axis=1)
         dbd.close()
         rho = fast_gsw.rho(C*10, T, P*10, lon, lat)
@@ -148,10 +160,16 @@ class GliderData(object):
         self.T_fun = interp1d(zj, T_avg, bounds_error = False, fill_value=(T_avg[0], T_avg[-1]))
 
         if self.u_fun is None: # not intialised yet, use last water current estimate available.
-            logger.info("Setting water velocities with constant value equal to water_v{x,y}")
-            self.u_fun = lambda x : u[-1]
-            self.v_fun = lambda x : v[-1]
-        
+            if self.ekman_depth is None:
+                logger.info("Setting water velocities with constant value equal to water_v{x,y}")
+                self.u_fun = lambda t, z : u[-1]
+                self.v_fun = lambda t, z : v[-1]
+            else:
+                logger.info("Setting water velocities with constant value equal to water_v{x,y}")
+                logger.info(f"   including ekman depth of {self.ekman_depth} with us={us} and vs ={vs}.")
+                self.u_fun = lambda t, z : u[-1] + us * np.exp(z/self.ekman_depth)
+                self.v_fun = lambda t, z : v[-1] + vs * np.exp(z/self.ekman_depth)
+
     def initialise_velocity_data(self, t, lat, lon):
         #self.u_fun = lambda x: 0
         #self.v_fun = lambda x: 0
@@ -177,8 +195,8 @@ class GliderData(object):
             self.read_bathymetry()
             self.read_gliderdata(t, lat, lon)
         try:
-            u = float(self.u_fun(t))
-            v = float(self.v_fun(t))
+            u = float(self.u_fun(t, z))
+            v = float(self.v_fun(t, z))
         except NameError:
             u=v=0
         w = 0

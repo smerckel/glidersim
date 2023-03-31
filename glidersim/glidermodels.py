@@ -369,16 +369,16 @@ class BaseGliderModel(object):
         self.gs['m_battpos']=self.pitchmotor.get_measured()
         #
         realLat,realLon=self.translate_lmc_latlon(self.x,self.y)
-        u, v, w, water_depth, eta, S, T, rho = self.get_environmental_data(t,realLat,realLon,self.z)
+        u_water, v_water, w_water, water_depth, eta, S, T, rho = self.get_environmental_data(t,realLat,realLon,self.z)
 
         # set glider parameters
         self.gs['temp']=T
         self.gs['salt']=S
         self.gs['water_depth']=water_depth
         self.gs['rho']= rho
-        self.gs['x_u']=u
-        self.gs['x_v']=v
-        self.gs['x_w']=w
+        self.gs['x_u']=u_water
+        self.gs['x_v']=v_water
+        self.gs['x_w']=w_water
         self.gs['x_water_depth']=water_depth+eta
 
         # for the CTD, we have only temperature. We would need to back-calculate C
@@ -420,17 +420,17 @@ class BaseGliderModel(object):
         self.x, self.y, self.z, self.gs['x_eastward_glider_velocity'],\
             self.gs['x_northward_glider_velocity'], self.gs['x_upward_glider_velocity'] = _x, _y, _z, _u, _v, _w
         speed = (self.gs['x_eastward_glider_velocity']**2 + self.gs['x_northward_glider_velocity']**2)**0.5
+        
         self.gs['x_speed']=speed
         # use Kalman filter to estiamte running average
         if speed>0: # not at the surface
             self._speed_deque.append(speed)
             self.gs['m_speed']=np.mean(self._speed_deque)
                             
-
         # update real position of the glider:
-        self.x += u * dt
-        self.y += v * dt
-        self.z += w * dt        
+        self.x += u_water * dt
+        self.y += v_water * dt
+        self.z += w_water * dt        
 
         # update new position (dead reckoned)
         self.gs['m_depth'] = - self.z
