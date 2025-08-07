@@ -49,7 +49,7 @@ glidersim.environments.GliderData.NC_LON_NAME='lonc'
 # included with the source.
 glidersim.environments.GliderData.DBDREADER_CACHEDIR = '../data/cac'
 
-if 1:
+if 0:
     # More realistic but takes some time to download current data.
     environment_model = glidersim.environments.DriftModel("comet", download_time=24,
                                                           gliders_directory='../data', bathymetry_filename='../data/bathymetry.nc')
@@ -77,7 +77,8 @@ conf = glidersim.configuration.Config('spiral.mi',
                                       sensor_settings= dict(),
                                       special_settings={'glider.gps.acquiretime':100.,
                                                         'mission_initialisation_time':400,
-                                                        'mission_start':'initial'})
+                                                        'mission_start':'initial',
+                                                        'initial_heading':0})
 
 #####################################################################################################
 #
