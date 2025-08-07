@@ -1,6 +1,6 @@
 import os
 import pickle
-
+import glob
 import numpy as np
 
 from latlon import convertToDecimal
@@ -50,9 +50,33 @@ class Data(object):
         with open(fn,'rb') as fd:
             self.data=pickle.load(fd)
 
-    def save(self,fn=None,data_format=None):
-        ''' '''
+    def create_new_filename(self, fn, suffix):
+        directory, filename = os.path.split(fn)
+        root, ext = os.path.splitext(filename)
+        abs_root = os.path.join(directory, f"{root}_")
+        fns = glob.glob(f"{abs_root}*{ext}")
+        fns.sort()
+        if fns:
+            most_recent_fn = fns[-1]
+            most_recent_suffix = most_recent_fn.replace(abs_root,"").replace(ext,"")
+            index = int(most_recent_suffix)
+            s = f"{{:{suffix}}}".format(index)
+            assert s == most_recent_suffix
+        else:
+            index = -1
+        s = f"{{:{suffix}}}".format(index+1)
+        fn = f"{abs_root}{s}{ext}"
+        return fn
+
+    def save(self,fn=None,data_format=None, filename_suffix=None):
+        ''' 
+        filename_suffix: str or None
+            If not None, defines how the filename is modified. For example "03d"
+        '''
         fn = fn or self.output
+        if filename_suffix:
+            fn = self.create_new_filename(fn, filename_suffix)
+        print(f"Writing output to {fn}...")
         _, extension = os.path.splitext(fn)
         s = extension.lower()[1:]
         data_format = data_format or s

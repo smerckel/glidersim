@@ -226,11 +226,12 @@ class BaseGliderModel(object):
         gs['m_depth']=0
         gs['m_present_secs_into_mission']=0.
         gs['samedepth_for']=0
+        # Note the API of arrow.timestamp changed. 3.10+ it is a function
         if datestr:
             if timestr:
-                gs['m_present_time'] = arrow.get(" ".join([datestr, timestr]), "YYYYMMDD HH:mm").timestamp()
+                gs['m_present_time'] = arrow.get(" ".join([datestr, timestr]), "YYYYMMDD HH:mm").timestamp
             else:
-                gs['m_present_time'] = arrow.get(datestr, "YYYYMMDD").timestamp()
+                gs['m_present_time'] = arrow.get(datestr, "YYYYMMDD").timestamp
         else:
             gs['m_present_time']=0.
         gs['stack']=1 # number of commands given.
