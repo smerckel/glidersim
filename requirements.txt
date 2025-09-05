@@ -4,3 +4,4 @@ scipy>=1.5.4
 gliderflight>=1.1.0
 dbdreader>=0.4.6
 netCDF4>=1.5.3
+gsw
