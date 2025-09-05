@@ -162,13 +162,13 @@ class GliderData(object):
         if self.u_fun is None: # not intialised yet, use last water current estimate available.
             if self.ekman_depth is None:
                 logger.info("Setting water velocities with constant value equal to water_v{x,y}")
-                self.u_fun = lambda t, z : u[-1]
-                self.v_fun = lambda t, z : v[-1]
+                self.u_fun = lambda t, lat, lon, z : u[-1]
+                self.v_fun = lambda t, lat, lon, z : v[-1]
             else:
                 logger.info("Setting water velocities with constant value equal to water_v{x,y}")
                 logger.info(f"   including ekman depth of {self.ekman_depth} with us={us} and vs ={vs}.")
-                self.u_fun = lambda t, z : u[-1] + us * np.exp(z/self.ekman_depth)
-                self.v_fun = lambda t, z : v[-1] + vs * np.exp(z/self.ekman_depth)
+                self.u_fun = lambda t, lat, lon, z : u[-1] + us * np.exp(z/self.ekman_depth)
+                self.v_fun = lambda t, lat, lon, z : v[-1] + vs * np.exp(z/self.ekman_depth)
 
     def initialise_velocity_data(self, t, lat, lon):
         #self.u_fun = lambda x: 0
@@ -195,8 +195,8 @@ class GliderData(object):
             self.read_bathymetry()
             self.read_gliderdata(t, lat, lon)
         try:
-            u = float(self.u_fun(t, z))
-            v = float(self.v_fun(t, z))
+            u = float(self.u_fun(t, lat, lon, z))
+            v = float(self.v_fun(t, lat, lon, z))
         except NameError:
             u=v=0
         w = 0
@@ -282,8 +282,36 @@ class DriftModel(GliderData):
         ti = np.arange(t[0], t[-1], dt)
         u_fun = interp1d(ti, np.gradient(fun_x(ti))/dt)
         v_fun = interp1d(ti, np.gradient(fun_y(ti))/dt)
+        assert False
+        # TODO u_fun and v_fun need to made such it accepts four parameters, t, lat, lon, z.
         return u_fun, v_fun
 
     def initialise_velocity_data(self, t, lat, lon):
         ''' dowload drift data for this region and time '''
         self.u_fun, self.v_fun = self.download_drift_data(t, lat, lon)
+
+
+
+
+class SurfaceVelocity(GliderData):
+    ''' Class to compute environmental data based on a 2 D velocity field in netcdf.
+
+    Bathymetry data are from a separate netcdf file.
+    '''
+    
+    def __init__(self, glider_name, gliders_directory, bathymetry_filename, velocity2d_filename, glider_is_simulator=None):
+        super().__init__(glider_name, gliders_directory, bathymetry_filename, glider_is_simulator)
+        self.velocity2d_filename = velocity2d_filename
+        
+    def initialise_velocity_data(self, t, lat, lon):
+        dataset = netCDF4.Dataset(self.velocity2d_filename)
+        u2d = dataset.variables["u"][:]
+        v2d = dataset.variables["v"][:]
+        lat = dataset.variables["lat"][:]
+        lon = dataset.variables["lon"][:]
+        fun_u = RegularGridInterpolator((lat, lon), u2d)
+        fun_v = RegularGridInterpolator((lat, lon), v2d)
+        self.u_fun = lambda t, lat, lon, z: fun_u((lat,lon))
+        self.v_fun = lambda t, lat, lon, z: fun_v((lat,lon))
+        
+

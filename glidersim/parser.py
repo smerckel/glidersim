@@ -65,7 +65,7 @@ class MafileParser(object):
     def addb_arg(self,i):
         dummy,param,value=i.split()
         # remove the units
-        param=re.sub("\(.*\)","",param)
+        param=re.sub(r"\(.*\)","",param)
         try:
             valueNum=int(value)
         except ValueError:
@@ -155,7 +155,7 @@ class MissionParser(object):
             # only do something here if the behavior is implemented.
             dummy,param,value=i.split()
             # remove the units
-            param=re.sub("\(.*\)","",param)
+            param=re.sub(r"\(.*\)","",param)
             try:
                 valueNum=int(value)
             except ValueError:

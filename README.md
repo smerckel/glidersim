@@ -60,7 +60,7 @@ pip install ./latlon ./GliderNetCDF
 
 # Get and install glidersim.
 git clone https://github.com/smerckel/glidersim.git
-pip install glidersim
+pip install ./glidersim
 ```
 
 ## Example
