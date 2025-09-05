@@ -37,7 +37,7 @@ class Data(object):
                     source="n.a.",
                     originator="n.a.")
                     
-        with ncHereon(fn, **opts) as nc:
+        with ncHereon(fn, mode='w', **opts) as nc:
             for k in self.data.keys():
                 if k==k_tm:
                     continue
